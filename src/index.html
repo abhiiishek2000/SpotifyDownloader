@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Music Downloader to MP3 -  Spotify Downloader</title>
+
+    <meta name="description"
+          content="Download your favorite Spotify songs easily with SpotifySave. Free music downloader with high quality audio.">
+    <meta name="keywords" content="spotify downloader, music download, spotify to mp3, spotify converter">
+    <meta name="author" content="SpotifySave">
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:title" content="SpotifySave - Spotify Music Downloader">
+    <meta property="og:description"
+          content="Download your favorite Spotify songs easily with SpotifySave. Free music downloader with high quality audio.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://spotifysave.com">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SSpotify Music Downloader to MP3 -  Spotify Downloader">
+    <meta name="twitter:description"
+          content="Download your favorite Spotify songs easily with SpotifySave. Free music downloader with high quality audio.">
+
+    <link rel="icon"
+          href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%231DB954' d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zm-2 16c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z'/></svg>">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "SpotifySave",
+            "description": "Download your favorite Spotify songs easily with SpotifySave",
+            "applicationCategory": "Multimedia",
+            "operatingSystem": "Any",
+            "offers": {
+                "@type": "Offer",
+                "price": "0"
+            }
+        }
+    </script>
+</head>
+<body>
+<nav class="header">
+    <a href="/" class="logo">
+        <div class="logo-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6zm-2 16c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+            </svg>
+        </div>
+        <h1 class="logo-text">SpotifySave</h1>
+    </a>
+</nav>
+
+<main class="container">
+    <h2 class="main-title">Spotify Downloader</h2>
+
+    <section class="input-container">
+        <div class="url-input-group">
+            <input type="text" id="url-input" class="url-input"
+                   placeholder="https://open.spotify.com/..../...">
+            <button class="paste-btn">Paste</button>
+        </div>
+        <button id="download-btn" class="download-btn">Download</button>
+    </section>
+
+    <div id="loading-spinner" class="spinner"></div>
+
+    <section id="track-info">
+        <div class="track-content">
+            <img id="track-image" class="track-image" alt="Album Art">
+            <div class="track-details">
+                <h3 id="track-title" class="track-title"></h3>
+                <p id="track-artist"></p>
+                <span id="track-duration" class="duration-badge"></span>
+                <button id="download-track" class="download-btn mt-4">Download Track</button>
+                <div id="progress-bar" class="progress-container">
+                    <div class="progress"></div>
+                    <span class="progress-text">Processing...</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="tutorial">
+        <h3 class="tutorial-title">How to Use SpotifySave?</h3>
+
+        <div class="download-steps">
+            <div class="step-item">
+                <span class="step-number">1</span>
+                <div class="step-content">
+                    <h4>Open Spotify</h4>
+                    <p>Launch your Spotify application or visit open.spotify.com</p>
+                    <img src="/images/spotify-app.png" alt="Spotify Application Interface" class="step-image">
+                </div>
+            </div>
+
+            <div class="step-item">
+                <span class="step-number">2</span>
+                <div class="step-content">
+                    <h4>Find Your Music</h4>
+                    <p>Search for your favorite song, album, or playlist</p>
+                    <img src="/images/spotify-search.png" alt="Spotify Search Interface" class="step-image">
+                </div>
+            </div>
+
+            <div class="step-item">
+                <span class="step-number">3</span>
+                <div class="step-content">
+                    <h4>Copy Link</h4>
+                    <p>Click the three dots (⋮) → Share → Copy Link</p>
+                    <img src="/images/spotify-share.png" alt="Spotify Share Button Location" class="step-image">
+                </div>
+            </div>
+
+            <div class="step-item">
+                <span class="step-number">4</span>
+                <div class="step-content">
+                    <h4>Paste & Download</h4>
+                    <p>Paste the link above and click Download button</p>
+                    <img src="/images/paste-download.png" alt="SpotifySave Download Interface" class="step-image">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="disclaimer-section">
+        <div class="container">
+            <h2 class="disclaimer-title">Disclaimer</h2>
+            <p>
+                SpotifySave is an independent platform and is not affiliated with or endorsed by Spotify AB. The use of
+                the name "Spotify" on this site is solely for contextual purposes and does not imply any ownership or
+                endorsement. The name "Spotify" remains the property of its copyright holder.
+            </p>
+            <p>
+                SpotifySave does not host any copyrighted material. Our platform utilizes third-party services to
+                achieve its intended goals. Any reference to specific songs, artists, or copyrighted content is for
+                informational and contextual purposes only.
+            </p>
+            <p>
+                We respect the intellectual property rights of copyright holders. If you believe that your copyrighted
+                work is being used on SpotifySave in a way that constitutes copyright infringement, please contact us,
+                and we will promptly address any valid concerns.
+            </p>
+            <p>
+                By using SpotifySave, you acknowledge and agree to the terms of this disclaimer. We encourage users to
+                comply with Spotify's terms of service and all relevant copyright laws when using our platform.
+            </p>
+        </div>
+    </section>
+
+    <div id="status"></div>
+</main>
+
+<footer class="footer">
+    <div class="footer-content">
+        <div class="footer-links">
+            <a href="/privacy">Privacy Policy</a>
+            <span class="divider">|</span>
+            <a href="/terms">Terms & Conditions</a>
+        </div>
+        <p class="copyright">© 2024 SpotifySave. All rights reserved.</p>
+    </div>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>
