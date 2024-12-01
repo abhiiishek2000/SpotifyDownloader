@@ -53,13 +53,6 @@ def get_download_url(title, artist):
         search_query = f"{title} {artist} audio"
         app.logger.debug(f"Searching for: {search_query}")
 
-        # List of sources to try in order
-        sources = [
-            ('soundcloud', 'scsearch'),
-            ('youtube', 'ytsearch'),
-            ('deezer', 'dzsearch')
-        ]
-
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -70,39 +63,29 @@ def get_download_url(title, artist):
             'quiet': True,
             'no_warnings': True,
             'extract_audio': True,
-            'audio_format': 'mp3',
-            'audio_quality': '320K',
+            'cookies_from_browser': ('chrome',),  # Use Chrome cookies
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
             'noplaylist': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'default_search': 'ytsearch'
         }
 
-        # Try each source until one works
-        for source_name, source_prefix in sources:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                app.logger.debug(f"Trying source: {source_name}")
-                ydl_opts['default_search'] = source_prefix
+                search_term = f"ytsearch:{search_query}"
+                info = ydl.extract_info(search_term, download=False)
 
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(f"{source_prefix}:{search_query}", download=False)
-
-                    if info and ('entries' in info and info['entries'] or 'url' in info):
-                        video = info['entries'][0] if 'entries' in info else info
-
-                        if video.get('url'):
-                            app.logger.info(f"Found on {source_name}: {video.get('title')}")
-                            return {
-                                'url': video.get('url'),
-                                'title': video.get('title', title),
-                                'duration': video.get('duration', 0),
-                                'source': source_name
-                            }
+                if info and 'entries' in info and info['entries']:
+                    video = info['entries'][0]
+                    return {
+                        'url': video.get('url'),
+                        'title': video.get('title', title),
+                        'duration': video.get('duration', 0)
+                    }
+                return None
 
             except Exception as e:
-                app.logger.error(f"Error with {source_name}: {str(e)}")
-                continue
-
-        app.logger.error("No sources available")
-        return None
+                app.logger.error(f"Extraction error: {str(e)}")
+                return None
 
     except Exception as e:
         app.logger.error(f"Download URL error: {str(e)}")
