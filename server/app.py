@@ -52,6 +52,7 @@ def get_download_url(title, artist):
     try:
         search_query = f"{title} {artist} audio"
 
+        # Try without YouTube first (using other sources)
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -61,44 +62,24 @@ def get_download_url(title, artist):
             }],
             'extract_info': True,
             'quiet': True,
-            'no_warnings': True,
-            # Enhanced anti-bot detection settings
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Referer': 'https://www.youtube.com',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'TE': 'trailers'
-            },
-            'nocheckcertificate': True,
-            'ignoreerrors': True,
-            'cookiefile': 'youtube.com_cookies.txt'  # Save cookies
+            'noplaylist': True,
+            'default_search': 'soundcloud',  # Try SoundCloud first
+            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}}
         }
 
-        # Update yt-dlp
-        os.system('yt-dlp -U')
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            app.logger.debug(f"Searching for: {search_query}")
-            info = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
+            try:
+                info = ydl.extract_info(search_query, download=False)
+                if info:
+                    return {
+                        'url': info.get('url', ''),
+                        'title': info.get('title', 'Unknown'),
+                        'duration': info.get('duration', 0)
+                    }
+            except:
+                pass
 
-            if 'entries' in info and info['entries']:
-                video = info['entries'][0]
-                return {
-                    'url': video.get('url'),
-                    'title': video.get('title'),
-                    'duration': video.get('duration')
-                }
-            return None
+        return None
     except Exception as e:
         app.logger.error(f"Error getting download URL: {str(e)}")
         return None
