@@ -53,39 +53,57 @@ def get_download_url(title, artist):
         search_query = f"{title} {artist} audio"
         app.logger.debug(f"Searching for: {search_query}")
 
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '320',
-            }],
-            'quiet': True,
-            'no_warnings': True,
-            'extract_audio': True,
-            'cookies_from_browser': ('chrome',),  # Use Chrome cookies
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'noplaylist': True,
-            'default_search': 'ytsearch'
-        }
+        # List of sources to try
+        sources = [
+            ('soundcloud', 'scsearch'),
+            ('youtube', 'ytsearch'),
+            ('deezer', 'dzsearch')
+        ]
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        for source_name, source_prefix in sources:
             try:
-                search_term = f"ytsearch:{search_query}"
-                info = ydl.extract_info(search_term, download=False)
+                ydl_opts = {
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '320',
+                    }],
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extract_audio': True,
+                    'default_search': source_prefix,
+                    'noplaylist': True,
+                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'cookiefile': 'youtube_cookies.txt' if source_name == 'youtube' else None
+                }
 
-                if info and 'entries' in info and info['entries']:
-                    video = info['entries'][0]
-                    return {
-                        'url': video.get('url'),
-                        'title': video.get('title', title),
-                        'duration': video.get('duration', 0)
-                    }
-                return None
+                app.logger.info(f"Trying source: {source_name}")
 
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(f"{source_prefix}:{search_query}", download=False)
+
+                    if info:
+                        if 'entries' in info and info['entries']:
+                            video = info['entries'][0]
+                        else:
+                            video = info
+
+                        url = video.get('url')
+                        if url:
+                            app.logger.info(f"Found on {source_name}")
+                            return {
+                                'url': url,
+                                'title': video.get('title', title),
+                                'duration': video.get('duration', 0),
+                                'source': source_name
+                            }
             except Exception as e:
-                app.logger.error(f"Extraction error: {str(e)}")
-                return None
+                app.logger.error(f"Error with {source_name}: {str(e)}")
+                continue
+
+        app.logger.error("No sources available")
+        return None
 
     except Exception as e:
         app.logger.error(f"Download URL error: {str(e)}")
