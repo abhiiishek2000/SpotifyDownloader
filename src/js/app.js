@@ -96,23 +96,23 @@ downloadBtn.addEventListener('click', async () => {
     }
 });
 
-
 downloadTrack.addEventListener('click', async () => {
-     if (!currentTrackInfo) {
+    if (!currentTrackInfo) {
         showError('No track selected');
         return;
     }
 
     downloadTrack.style.display = 'none';
     progressBar.style.display = 'block';
-    status.textContent = 'Starting download';
-    status.classList.add('loading-dots');
-    status.style.display = 'block';
     progressElement.style.width = '0%';
     progressText.textContent = 'Processing...';
+    showInfo('Starting download...');
 
     try {
-     showInfo('Starting download...');
+        // Start progress animation
+        progressElement.style.width = '5%';
+        progressText.textContent = 'Fetching audio source...';
+
         const response = await fetch('/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -122,46 +122,41 @@ downloadTrack.addEventListener('click', async () => {
             })
         });
 
-        const contentLength = +response.headers.get('Content-Length');
-        const reader = response.body.getReader();
-        let receivedLength = 0;
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
 
-        await new Promise(resolve => setTimeout(resolve, 800));
-        progressElement.style.width = '5%';
-        progressText.textContent = '5%';
-        status.textContent = 'Preparing audio';
+        progressElement.style.width = '30%';
+        progressText.textContent = 'Starting download...';
 
-        while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
+        // Create and trigger download
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.download = `${data.title}.mp3`;
 
-            receivedLength += value.length;
-            const progress = Math.min(95, (receivedLength / contentLength) * 100);
+        progressElement.style.width = '60%';
+        progressText.textContent = 'Downloading...';
 
-            await new Promise(resolve => setTimeout(resolve, 100));
-            progressElement.style.width = `${progress}%`;
-            progressText.textContent = `${Math.round(progress)}%`;
-            status.textContent = 'Downloading audio';
-        }
-        status.textContent = 'Finalizing download';
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Complete progress bar
         progressElement.style.width = '100%';
-        progressText.textContent = '100%';
-        showSuccess('Download completed successfully!');
-        status.textContent = 'Successfully downloaded!';
-        status.classList.remove('loading-dots');
+        progressText.textContent = 'Download started!';
+        showSuccess('Download started successfully!');
 
+        // Reset UI after delay
         setTimeout(() => {
             progressBar.style.display = 'none';
-            status.style.display = 'none';
             downloadTrack.style.display = 'block';
             downloadTrack.textContent = 'Downloaded';
             downloadTrack.disabled = true;
             downloadBtn.style.display = 'block';
         }, 2000);
+
     } catch (error) {
         showError('Download failed: ' + error.message);
-        status.classList.remove('loading-dots');
         progressBar.style.display = 'none';
         downloadTrack.style.display = 'block';
         downloadTrack.disabled = false;

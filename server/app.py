@@ -6,11 +6,16 @@ import re
 from datetime import timedelta
 from pathlib import Path
 import os
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__,
-    static_folder='../src',
-    static_url_path='',
-    template_folder='../src')
+            static_folder='../src',
+            static_url_path='',
+            template_folder='../src')
+
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
@@ -36,35 +41,47 @@ def get_track_info(url):
             'url': url
         }
     except Exception as e:
+        app.logger.error(f"Error getting track info: {str(e)}")
         return None
 
 
-def download_track(title, artist):
-    downloads_path = str(Path.home() / "Downloads")
-    search_query = f"{title} {artist} audio"
-
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '320',
-        }],
-        'outtmpl': f'{downloads_path}/%(title)s.%(ext)s',
-        'quiet': False
-    }
-
+def get_download_url(title, artist):
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{search_query}", download=True)
-            file_path = f"{downloads_path}/{info['entries'][0]['title']}.mp3"
+        search_query = f"{title} {artist} audio"
 
-            if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
-                return file_path if file_size > 0 else None
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            }],
+            'extract_info': True,
+            'quiet': True,
+            'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate'
+            }
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            app.logger.debug(f"Searching for: {search_query}")
+            info = ydl.extract_info(f"ytsearch1:{search_query}", download=False)
+
+            if 'entries' in info and info['entries']:
+                video = info['entries'][0]
+                return {
+                    'url': video.get('url'),
+                    'title': video.get('title'),
+                    'duration': video.get('duration')
+                }
             return None
     except Exception as e:
-        print(f"Download error: {str(e)}")
+        app.logger.error(f"Error getting download URL: {str(e)}")
         return None
 
 
@@ -87,23 +104,31 @@ def get_info():
 
 @app.route('/download', methods=['POST'])
 def download():
-    title = request.json.get('title')
-    artist = request.json.get('artist')
+    try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
 
-    if not title or not artist:
-        return jsonify({'error': 'Title and artist required'}), 400
+        if not title or not artist:
+            return jsonify({'error': 'Title and artist required'}), 400
 
-    file_path = download_track(title, artist)
-    if file_path and os.path.exists(file_path):
-        return jsonify({
-            'success': True,
-            'message': f'Downloaded to: {file_path}'
-        })
-    return jsonify({'error': 'Download failed'}), 500
+        download_info = get_download_url(title, artist)
+        if download_info and download_info.get('url'):
+            return jsonify({
+                'success': True,
+                'url': download_info['url'],
+                'title': download_info['title']
+            })
+
+        return jsonify({'error': 'Could not get download URL'}), 500
+    except Exception as e:
+        app.logger.error(f"Download error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/privacy')
 def privacy():
     return render_template('privacy.html')
+
 
 @app.route('/terms')
 def terms():
