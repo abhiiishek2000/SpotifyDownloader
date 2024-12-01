@@ -51,8 +51,8 @@ def get_track_info(url):
 def get_download_url(title, artist):
     try:
         search_query = f"{title} {artist} audio"
+        app.logger.debug(f"Searching for: {search_query}")
 
-        # Try without YouTube first (using other sources)
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -60,28 +60,42 @@ def get_download_url(title, artist):
                 'preferredcodec': 'mp3',
                 'preferredquality': '320',
             }],
+            'quiet': False,
+            'no_warnings': False,
+            'extract_audio': True,
+            'audio_format': 'mp3',
+            'audio_quality': '320K',
             'extract_info': True,
-            'quiet': True,
-            'noplaylist': True,
-            'default_search': 'soundcloud',  # Try SoundCloud first
-            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}}
+            'default_search': 'ytsearch',  # Add this line
+            'noplaylist': True
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                info = ydl.extract_info(search_query, download=False)
-                if info:
-                    return {
-                        'url': info.get('url', ''),
-                        'title': info.get('title', 'Unknown'),
-                        'duration': info.get('duration', 0)
-                    }
-            except:
-                pass
+                # Use ytsearch prefix explicitly
+                search_term = f"ytsearch:{search_query}"
+                app.logger.debug(f"Using search term: {search_term}")
 
-        return None
+                info = ydl.extract_info(search_term, download=False)
+                app.logger.debug(f"Search completed")
+
+                if info and 'entries' in info and info['entries']:
+                    video = info['entries'][0]  # Get first result
+                    return {
+                        'url': video.get('url', ''),
+                        'title': video.get('title', title),
+                        'duration': video.get('duration', 0)
+                    }
+
+                app.logger.error("No valid search results found")
+                return None
+
+            except Exception as e:
+                app.logger.error(f"Extraction error: {str(e)}")
+                return None
+
     except Exception as e:
-        app.logger.error(f"Error getting download URL: {str(e)}")
+        app.logger.error(f"Download URL error: {str(e)}")
         return None
 
 
@@ -111,19 +125,23 @@ def download():
         if not title or not artist:
             return jsonify({'error': 'Title and artist required'}), 400
 
+        app.logger.info(f"Attempting to download: {title} by {artist}")
         download_info = get_download_url(title, artist)
+
         if download_info and download_info.get('url'):
+            app.logger.info(f"Download URL found: {download_info['url'][:50]}...")
             return jsonify({
                 'success': True,
                 'url': download_info['url'],
                 'title': download_info['title']
             })
 
+        app.logger.error("Failed to get download URL")
         return jsonify({'error': 'Could not get download URL'}), 500
+
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
+        return jsonify({'error': f'Failed to fetch: {str(e)}'}), 500
 
 @app.route('/privacy')
 def privacy():
