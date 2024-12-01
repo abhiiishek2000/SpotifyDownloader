@@ -16,6 +16,9 @@ app = Flask(__name__,
             static_url_path='',
             template_folder='../src')
 
+# Update yt-dlp on startup
+os.system('pip install -U yt-dlp')
+
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
@@ -59,14 +62,30 @@ def get_download_url(title, artist):
             'extract_info': True,
             'quiet': True,
             'no_warnings': True,
+            # Enhanced anti-bot detection settings
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Sec-Fetch-Mode': 'navigate'
-            }
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://www.youtube.com',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'TE': 'trailers'
+            },
+            'nocheckcertificate': True,
+            'ignoreerrors': True,
+            'cookiefile': 'youtube.com_cookies.txt'  # Save cookies
         }
+
+        # Update yt-dlp
+        os.system('yt-dlp -U')
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             app.logger.debug(f"Searching for: {search_query}")
