@@ -122,32 +122,23 @@ downloadTrack.addEventListener('click', async () => {
             throw new Error(error.error || 'Download failed');
         }
 
-        // Get the blob from response
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
 
-        progressElement.style.width = '100%';
-        progressText.textContent = 'Ready to save!';
-
-        // Create download link
         const a = document.createElement('a');
+        a.style.display = 'none';
         a.href = url;
         a.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
-        a.textContent = 'Save to Device';
-        a.className = 'download-btn mt-4';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
 
-        // Replace progress bar with save button
         progressBar.style.display = 'none';
-        downloadTrack.parentNode.appendChild(a);
-
-        // Cleanup after download
-        a.onclick = () => {
-            window.URL.revokeObjectURL(url);
-            a.remove();
-            downloadTrack.style.display = 'block';
-            downloadTrack.textContent = 'Downloaded';
-            downloadTrack.disabled = true;
-        };
+        downloadTrack.style.display = 'block';
+        downloadTrack.textContent = 'Downloaded';
+        downloadTrack.disabled = true;
+        showSuccess('Download complete!');
 
     } catch (error) {
         showError('Download failed: ' + error.message);
