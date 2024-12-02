@@ -111,7 +111,13 @@ def download():
                 'preferredquality': '320',
             }],
             'outtmpl': output_file,
-            'quiet': True
+            'quiet': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_skip': ['webpage', 'config'],
+                    'skip': ['hls', 'dash']
+                }
+            }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
