@@ -47,14 +47,20 @@ def get_track_info(url):
 
 def create_youtube_cookie_file():
     cookie_content = """# Netscape HTTP Cookie File
-.youtube.com     TRUE    /   FALSE   2597573456  CONSENT YES+cb
-.youtube.com     TRUE    /   FALSE   2597573456  GPS 1
-.youtube.com     TRUE    /   FALSE   2597573456  VISITOR_INFO1_LIVE vCxkeHDQRUs
-.youtube.com     TRUE    /   FALSE   2597573456  LOGIN_INFO AFmmF2swRQIhAJxz74jOXpbr7PxW6w5KlYMpXZ0sZ7n5H_GWpDxsf9NLAiAKLkY4CnqznPrEY0LHw9zXxfRxo-80Nto_yXLYfKdQxQ:QUQ3MjNmeXJtSERjMlZWRDllUnhqTkhLUzNyMDZzbi1yd2N3RlRNeUNfLXBNNEhpMDRwR21URHVWMEYwUlN0ZUxjZGE3cEVNVWF2NmxrVXhzZmhnMnM4dE9COUR2NEpJQk5QS2ozQjJfaHAwcXFWMmFwS2pOQjM4aW5HSnVlZFA1N01YX19ETlRrWURiQUVjYWtlektEUmQ2UWZyeFJBSjJl"""
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.youtube.com	TRUE	/	FALSE	2597573456	CONSENT	YES+cb
+.youtube.com	TRUE	/	FALSE	2597573456	GPS	1
+.youtube.com	TRUE	/	FALSE	2597573456	VISITOR_INFO1_LIVE	vCxkeHDQRUs
+.youtube.com	TRUE	/	FALSE	2597573456	LOGIN_INFO	AFmmF2swRQIhAJxz74jOXpbr7PxW6w5KlYMpXZ0sZ7n5H_GWpDxsf9NLAiAKLkY4CnqznPrEY0LHw9zXxfRxo-80Nto_yXLYfKdQxQ:QUQ3MjNmeXJtSERjMlZWRDllUnhqTkhLUzNyMDZzbi1yd2N3RlRNeUNfLXBNNEhpMDRwR21URHVWMEYwUlN0ZUxjZGE3cEVNVWF2NmxrVXhzZmhnMnM4dE9COUR2NEpJQk5QS2ozQjJfaHAwcXFWMmFwS2pOQjM4aW5HSnVlZFA1N01YX19ETlRrWURiQUVjYWtlektEUmQ2UWZyeFJBSjJl"""
 
     cookie_file = os.path.join(os.path.dirname(__file__), 'youtube.cookies')
     with open(cookie_file, 'w') as f:
         f.write(cookie_content)
+
+    # Set permissions
+    os.chmod(cookie_file, 0o644)
     return cookie_file
 
 
