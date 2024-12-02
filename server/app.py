@@ -79,27 +79,22 @@ def download_track(title, artist):
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
+            'ffmpeg_location': '/usr/bin/ffmpeg',  # Add explicit path
             'extract_flat': False,
             'no_check_certificate': True,
             'extractor_args': {
                 'youtube': {
                     'nocheckcertificate': True,
-                    'no_warnings': True,
-                    'format': 'bestaudio/best'
+                    'no_warnings': True
                 }
-            },
-            'external_downloader': 'aria2c',
-            'external_downloader_args': ['--min-split-size=1M', '--max-connection-per-server=16']
+            }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            search_result = ydl.extract_info(f"scsearch1:{title} {artist} audio", download=False)
-            if search_result.get('entries'):
-                video_url = search_result['entries'][0]['url']
-                ydl.download([video_url])
-                final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
-                if os.path.exists(final_file):
-                    return final_file
+            ydl.download([f"scsearch1:{title} {artist} audio"])
+            final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
+            if os.path.exists(final_file):
+                return final_file
         return None
 
     except Exception as e:
