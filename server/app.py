@@ -44,40 +44,50 @@ def get_track_info(url):
        app.logger.error(f"Error getting track info: {str(e)}")
        return None
 
+
+def create_youtube_cookie_file():
+    cookie_content = """# Netscape HTTP Cookie File
+.youtube.com     TRUE    /   FALSE   2597573456  CONSENT YES+cb
+.youtube.com     TRUE    /   FALSE   2597573456  GPS 1
+.youtube.com     TRUE    /   FALSE   2597573456  VISITOR_INFO1_LIVE vCxkeHDQRUs
+.youtube.com     TRUE    /   FALSE   2597573456  LOGIN_INFO AFmmF2swRQIhAJxz74jOXpbr7PxW6w5KlYMpXZ0sZ7n5H_GWpDxsf9NLAiAKLkY4CnqznPrEY0LHw9zXxfRxo-80Nto_yXLYfKdQxQ:QUQ3MjNmeXJtSERjMlZWRDllUnhqTkhLUzNyMDZzbi1yd2N3RlRNeUNfLXBNNEhpMDRwR21URHVWMEYwUlN0ZUxjZGE3cEVNVWF2NmxrVXhzZmhnMnM4dE9COUR2NEpJQk5QS2ozQjJfaHAwcXFWMmFwS2pOQjM4aW5HSnVlZFA1N01YX19ETlRrWURiQUVjYWtlektEUmQ2UWZyeFJBSjJl"""
+
+    cookie_file = os.path.join(os.path.dirname(__file__), 'youtube.cookies')
+    with open(cookie_file, 'w') as f:
+        f.write(cookie_content)
+    return cookie_file
+
+
 def download_track(title, artist):
-   try:
-       temp_dir = tempfile.mkdtemp()
-       output_template = os.path.join(temp_dir, f'{title} - {artist}.%(ext)s')
+    try:
+        temp_dir = tempfile.mkdtemp()
+        output_template = os.path.join(temp_dir, f'{title} - {artist}.%(ext)s')
+        cookie_file = create_youtube_cookie_file()
 
-       ydl_opts = {
-           'format': 'bestaudio/best',
-           'postprocessors': [{
-               'key': 'FFmpegExtractAudio',
-               'preferredcodec': 'mp3',
-               'preferredquality': '320',
-           }],
-           'outtmpl': output_template,
-           'quiet': True,
-           'no_warnings': True,
-           'cookiesfrombrowser': ('chrome',),
-           'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-           'http_headers': {
-               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-               'Accept-Language': 'en-US,en;q=0.5',
-               'Cookie': 'CONSENT=YES+; VISITOR_INFO1_LIVE=vCxkeHDQRUs; LOGIN_INFO=AFmmF2swRQIhAJxz74jOXpbr7PxW6w5KlYMpXZ0sZ7n5H_GWpDxsf9NLAiAKLkY4CnqznPrEY0LHw9zXxfRxo-80Nto_yXLYfKdQxQ:QUQ3MjNmeXJtSERjMlZWRDllUnhqTkhLUzNyMDZzbi1yd2N3RlRNeUNfLXBNNEhpMDRwR21URHVWMEYwUlN0ZUxjZGE3cEVNVWF2NmxrVXhzZmhnMnM4dE9COUR2NEpJQk5QS2ozQjJfaHAwcXFWMmFwS2pOQjM4aW5HSnVlZFA1N01YX19ETlRrWURiQUVjYWtlektEUmQ2UWZyeFJBSjJl; YSC=3Hgbq-2xn3E; GPS=1'
-           }
-       }
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            }],
+            'outtmpl': output_template,
+            'quiet': True,
+            'no_warnings': True,
+            'cookiefile': cookie_file,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
 
-       with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-           ydl.download([f"ytsearch1:{title} {artist} audio"])
-           final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
-           if os.path.exists(final_file):
-               return final_file
-       return None
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"ytsearch1:{title} {artist} audio"])
+            final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
+            if os.path.exists(final_file):
+                return final_file
+        return None
 
-   except Exception as e:
-       app.logger.error(f"Download error: {str(e)}")
-       return None
+    except Exception as e:
+        app.logger.error(f"Download error: {str(e)}")
+        return None
 
 @app.route('/download', methods=['POST'])
 def download():
