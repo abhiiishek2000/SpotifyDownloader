@@ -7,6 +7,8 @@ from datetime import timedelta
 from pathlib import Path
 import os
 import logging
+import os
+import tempfile
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -50,7 +52,11 @@ def get_track_info(url):
 
 def download_track(title, artist):
     try:
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+
         search_query = f"{title} {artist} audio"
+        output_template = os.path.join(temp_dir, f'{title} - {artist}.%(ext)s')
 
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -59,23 +65,53 @@ def download_track(title, artist):
                 'preferredcodec': 'mp3',
                 'preferredquality': '320',
             }],
-            'quiet': True,
-            'outtmpl': f'{title} - {artist}.%(ext)s',
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'http_headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Cookie': 'CONSENT=YES+; VISITOR_INFO1_LIVE=_rJC-7qZ-QI; GPS=1; YSC=6xiKE1ZG7P0;'
+            'outtmpl': output_template,
+            'extract_flat': 'in_playlist',
+            'no_warnings': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_skip': ['webpage', 'config'],
+                    'skip': ['hls', 'dash']
+                }
             }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"ytsearch1:{search_query}"])
-            return f'{title} - {artist}.mp3'
+            info = ydl.extract_info(f"ytsearch1:{search_query}")
+            if info and 'entries' in info:
+                entry = info['entries'][0]
+                url = entry.get('url')
+                if url:
+                    final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
+                    return final_file
+        return None
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return None
+
+
+@app.route('/download', methods=['POST'])
+def download():
+    try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+
+        if not title or not artist:
+            return jsonify({'error': 'Title and artist required'}), 400
+
+        file_path = download_track(title, artist)
+        if file_path and os.path.exists(file_path):
+            return send_file(
+                file_path,
+                as_attachment=True,
+                download_name=f'{title} - {artist}.mp3',
+                mimetype='audio/mpeg'
+            )
+        return jsonify({'error': 'Download failed'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/')
 def index():
@@ -93,23 +129,6 @@ def get_info():
         return jsonify(track_info)
     return jsonify({'error': 'Could not fetch track info'}), 500
 
-
-@app.route('/download', methods=['POST'])
-def download():
-    try:
-        title = request.json.get('title')
-        artist = request.json.get('artist')
-
-        if not title or not artist:
-            return jsonify({'error': 'Title and artist required'}), 400
-
-        filename = download_track(title, artist)
-        if filename:
-            return send_file(filename, as_attachment=True)
-        return jsonify({'error': 'Download failed'}), 500
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/privacy')
 def privacy():
