@@ -112,6 +112,7 @@ def download():
             }],
             'outtmpl': output_file,
             'quiet': True,
+            'no_warnings': True,
             'extractor_args': {
                 'youtube': {
                     'player_skip': ['webpage', 'config'],
