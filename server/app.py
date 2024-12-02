@@ -100,19 +100,36 @@ def download():
         if not title or not artist:
             return jsonify({'error': 'Title and artist required'}), 400
 
-        file_path = download_track(title, artist)
-        if file_path and os.path.exists(file_path):
-            return send_file(
-                file_path,
-                as_attachment=True,
-                download_name=f'{title} - {artist}.mp3',
-                mimetype='audio/mpeg'
-            )
+        temp_dir = tempfile.mkdtemp()
+        output_file = os.path.join(temp_dir, f'{title} - {artist}.%(ext)s')
+
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            }],
+            'outtmpl': output_file,
+            'quiet': True
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"ytsearch1:{title} {artist} audio"])
+            final_file = f"{temp_dir}/{title} - {artist}.mp3"
+
+            if os.path.exists(final_file):
+                return send_file(
+                    final_file,
+                    as_attachment=True,
+                    download_name=f'{title} - {artist}.mp3',
+                    mimetype='audio/mpeg'
+                )
+
         return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')

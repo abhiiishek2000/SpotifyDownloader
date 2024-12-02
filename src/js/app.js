@@ -106,13 +106,8 @@ downloadTrack.addEventListener('click', async () => {
     progressBar.style.display = 'block';
     progressElement.style.width = '0%';
     progressText.textContent = 'Processing...';
-    showInfo('Starting download...');
 
     try {
-        // Start progress animation
-        progressElement.style.width = '5%';
-        progressText.textContent = 'Fetching audio source...';
-
         const response = await fetch('/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -122,38 +117,37 @@ downloadTrack.addEventListener('click', async () => {
             })
         });
 
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Download failed');
+        }
 
-        progressElement.style.width = '30%';
-        progressText.textContent = 'Starting download...';
+        // Get the blob from response
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
 
-        // Create and trigger download
-        const link = document.createElement('a');
-        link.href = data.url;
-        link.download = `${data.title}.mp3`;
-
-        progressElement.style.width = '60%';
-        progressText.textContent = 'Downloading...';
-
-        // Trigger download
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Complete progress bar
         progressElement.style.width = '100%';
-        progressText.textContent = 'Download started!';
-        showSuccess('Download started successfully!');
+        progressText.textContent = 'Ready to save!';
 
-        // Reset UI after delay
-        setTimeout(() => {
-            progressBar.style.display = 'none';
+        // Create download link
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
+        a.textContent = 'Save to Device';
+        a.className = 'download-btn mt-4';
+
+        // Replace progress bar with save button
+        progressBar.style.display = 'none';
+        downloadTrack.parentNode.appendChild(a);
+
+        // Cleanup after download
+        a.onclick = () => {
+            window.URL.revokeObjectURL(url);
+            a.remove();
             downloadTrack.style.display = 'block';
             downloadTrack.textContent = 'Downloaded';
             downloadTrack.disabled = true;
-            downloadBtn.style.display = 'block';
-        }, 2000);
+        };
 
     } catch (error) {
         showError('Download failed: ' + error.message);
