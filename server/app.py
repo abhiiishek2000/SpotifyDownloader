@@ -8,6 +8,7 @@ from pathlib import Path
 import os
 import logging
 import tempfile
+import subprocess
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -67,34 +68,34 @@ def create_youtube_cookie_file():
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
-        output_template = os.path.join(temp_dir, f'{title} - {artist}.%(ext)s')
+        os.chdir(temp_dir)  # Change to temp directory
 
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '320',
-            }],
-            'outtmpl': output_template,
-            'quiet': True,
-            'no_warnings': True,
-            'ffmpeg_location': '/usr/bin/ffmpeg',  # Add explicit path
-            'extract_flat': False,
-            'no_check_certificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'nocheckcertificate': True,
-                    'no_warnings': True
-                }
-            }
-        }
+        # Build spotdl command
+        command = [
+            'spotdl',
+            '--output', temp_dir,
+            '--format', 'mp3',
+            '--bitrate', '320k',
+            'download',
+            f'{title} - {artist}'  # Search query format
+        ]
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"scsearch1:{title} {artist} audio"])
-            final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
-            if os.path.exists(final_file):
-                return final_file
+        # Run spotdl command
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            text=True
+        )
+
+        # Find the downloaded file
+        files = os.listdir(temp_dir)
+        mp3_files = [f for f in files if f.endswith('.mp3')]
+
+        if mp3_files:
+            file_path = os.path.join(temp_dir, mp3_files[0])
+            if os.path.exists(file_path):
+                return file_path
+
         return None
 
     except Exception as e:
