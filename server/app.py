@@ -68,7 +68,6 @@ def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
         output_template = os.path.join(temp_dir, f'{title} - {artist}.%(ext)s')
-        cookie_file = create_youtube_cookie_file()
 
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -80,15 +79,27 @@ def download_track(title, artist):
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
-            'cookiefile': cookie_file,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'extract_flat': False,
+            'no_check_certificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'nocheckcertificate': True,
+                    'no_warnings': True,
+                    'format': 'bestaudio/best'
+                }
+            },
+            'external_downloader': 'aria2c',
+            'external_downloader_args': ['--min-split-size=1M', '--max-connection-per-server=16']
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"ytsearch1:{title} {artist} audio"])
-            final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
-            if os.path.exists(final_file):
-                return final_file
+            search_result = ydl.extract_info(f"scsearch1:{title} {artist} audio", download=False)
+            if search_result.get('entries'):
+                video_url = search_result['entries'][0]['url']
+                ydl.download([video_url])
+                final_file = os.path.join(temp_dir, f'{title} - {artist}.mp3')
+                if os.path.exists(final_file):
+                    return final_file
         return None
 
     except Exception as e:
