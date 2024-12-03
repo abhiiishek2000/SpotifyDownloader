@@ -66,31 +66,34 @@ def create_youtube_cookie_file():
     return cookie_file
 
 
-
-
-
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
         # Initialize spotdl
-        spotdl_client = Spotdl(
-            output=temp_dir,
-            format='mp3',
-            bitrate='320k'
-        )
+        app.logger.debug(f"Initializing SpotDL for: {title} - {artist}")
+        spotdl_client = Spotdl()
 
         # Search and download
         search_query = f"{title} - {artist}"
         app.logger.debug(f"Searching for: {search_query}")
 
+        # Search for songs
         songs = spotdl_client.search([search_query])
+
         if songs:
             # Download first match
-            file_path = spotdl_client.download_songs(songs)[0]
-            if os.path.exists(file_path):
-                return file_path
+            downloaded_files = spotdl_client.download(songs[0])
+
+            # If download successful, move file to temp directory
+            if downloaded_files:
+                for file_path in downloaded_files:
+                    if os.path.exists(file_path):
+                        # Move file to temp directory
+                        new_path = os.path.join(temp_dir, os.path.basename(file_path))
+                        os.rename(file_path, new_path)
+                        return new_path
 
         return None
 
