@@ -53,17 +53,10 @@ def get_track_info(url):
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
-        os.chdir(temp_dir)  # Change working directory to temp
+        os.chdir(temp_dir)
 
-        # Configure download options
-        options = {
-            'format': 'mp3',
-            'bitrate': '320k',
-            'path_template': os.path.join(temp_dir, '{artist} - {title}.{ext}')
-        }
-
-        # Initialize spotdl with options
-        spotdl = Spotdl(download_options=options)
+        # Initialize SpotDL without any arguments
+        spotdl = Spotdl()
 
         # Search query
         search_query = f"{title} - {artist}"
@@ -73,12 +66,18 @@ def download_track(title, artist):
         songs = spotdl.search([search_query])
 
         if songs:
+            # Set output file path
+            output_file = os.path.join(temp_dir, f"{title} - {artist}.mp3")
+
             # Download song
-            downloaded_song = spotdl.download_songs([songs[0]])
-            if downloaded_song:
-                final_path = downloaded_song[0]
-                if os.path.exists(final_path):
-                    return final_path
+            try:
+                downloaded_song = spotdl.download(songs[0])
+                if downloaded_song and os.path.exists(downloaded_song[0]):
+                    # Move file to desired location
+                    os.rename(downloaded_song[0], output_file)
+                    return output_file
+            except Exception as download_error:
+                app.logger.error(f"Download error: {str(download_error)}")
 
         return None
 
