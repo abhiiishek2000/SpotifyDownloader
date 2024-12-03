@@ -9,6 +9,7 @@ import os
 import logging
 import tempfile
 import subprocess
+from spotdl import Spotdl
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -65,34 +66,29 @@ def create_youtube_cookie_file():
     return cookie_file
 
 
+
+
+
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
-        os.chdir(temp_dir)  # Change to temp directory
+        os.chdir(temp_dir)
 
-        # Build spotdl command
-        command = [
-            'spotdl',
-            '--output', temp_dir,
-            '--format', 'mp3',
-            '--bitrate', '320k',
-            'download',
-            f'{title} - {artist}'  # Search query format
-        ]
-
-        # Run spotdl command
-        process = subprocess.run(
-            command,
-            capture_output=True,
-            text=True
+        # Initialize spotdl
+        spotdl_client = Spotdl(
+            output=temp_dir,
+            format='mp3',
+            bitrate='320k'
         )
 
-        # Find the downloaded file
-        files = os.listdir(temp_dir)
-        mp3_files = [f for f in files if f.endswith('.mp3')]
+        # Search and download
+        search_query = f"{title} - {artist}"
+        app.logger.debug(f"Searching for: {search_query}")
 
-        if mp3_files:
-            file_path = os.path.join(temp_dir, mp3_files[0])
+        songs = spotdl_client.search([search_query])
+        if songs:
+            # Download first match
+            file_path = spotdl_client.download_songs(songs)[0]
             if os.path.exists(file_path):
                 return file_path
 
