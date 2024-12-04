@@ -51,33 +51,33 @@ def download_track(title, artist):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Construct spotdl command with additional options
+        # Construct spotdl command
         command = [
             '/var/www/spotifysave/env/bin/spotdl',
             '--output', temp_dir,
             '--format', 'mp3',
             '--bitrate', '320k',
-            '--no-cache',  # Add this to avoid caching issues
-            '--audio-provider', 'youtube-music',  # Specify YouTube Music as provider
-            '--search-query', '{artist} - {track-name} audio',  # Better search format
-            '--download-ffmpeg',  # Ensure ffmpeg is available
+            '--no-cache',
+            '--audio-provider', 'youtube-music',
             'download',
-            f"{title} - {artist}"
+            '--yes',  # Auto-answer yes to prompts
+            f'"{title} - {artist}"'
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
 
-        # Set environment variables for the subprocess
+        # Set environment variables
         env = os.environ.copy()
-        env['PATH'] = f"/var/www/spotifysave/env/bin:{env.get('PATH', '')}"
+        env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
+        env['PYTHONUNBUFFERED'] = '1'  # Ensure Python output isn't buffered
 
-        # Run spotdl command with extended timeout
+        # Run spotdl command
         process = subprocess.run(
             command,
             capture_output=True,
             text=True,
             env=env,
-            timeout=300  # 5 minutes timeout
+            timeout=300
         )
 
         app.logger.debug(f"Command output: {process.stdout}")
