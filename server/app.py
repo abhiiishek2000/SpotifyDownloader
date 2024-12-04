@@ -1,15 +1,12 @@
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
-import yt_dlp
+import logging
+import os
+import tempfile
+from datetime import timedelta
+
 import requests
 from bs4 import BeautifulSoup
-import re
-from datetime import timedelta
-from pathlib import Path
-import os
-import logging
-import tempfile
-import subprocess
-import json
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from spotdl import Spotdl
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -47,54 +44,44 @@ def get_track_info(url):
         return None
 
 
+
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
-        os.chdir(temp_dir)
+        spotdl = Spotdl()
 
-        # Construct spotdl command with correct arguments
-        command = [
-            '/var/www/spotifysave/env/bin/spotdl',
-            '--audio', 'youtube-music',
-            '--format', 'mp3',
-            '--bitrate', '320k',
-            '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
-            '--search-query', '{artist} {title} audio',
-            'download',  # operation must come before the query
-            f'{title} - {artist}'
-        ]
+        # Create song object
+        search_query = f"{title} {artist}"
+        app.logger.debug(f"Searching for: {search_query}")
 
-        app.logger.debug(f"Running command: {' '.join(command)}")
+        # Search for songs
+        songs = spotdl.search([search_query])
 
-        env = os.environ.copy()
-        env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
+        if songs:
+            # Download the first matching song
+            song = songs[0]
+            app.logger.debug(f"Found song: {song.name} by {song.artist}")
 
-        process = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=300
-        )
+            try:
+                # Set output path
+                output_path = os.path.join(temp_dir, f"{title} - {artist}.mp3")
 
-        app.logger.debug(f"Command output: {process.stdout}")
-        if process.stderr:
-            app.logger.error(f"Command error: {process.stderr}")
+                # Download the song
+                download_info = spotdl.download(songs[0])
 
-        # Check for downloaded files
-        files = os.listdir(temp_dir)
-        mp3_files = [f for f in files if f.endswith('.mp3')]
+                if download_info and os.path.exists(download_info[0]):
+                    # Move file to desired location if needed
+                    if download_info[0] != output_path:
+                        os.rename(download_info[0], output_path)
+                    return output_path
 
-        if mp3_files:
-            file_path = os.path.join(temp_dir, mp3_files[0])
-            if os.path.exists(file_path):
-                app.logger.info(f"Successfully downloaded: {file_path}")
-                return file_path
+            except Exception as e:
+                app.logger.error(f"Download error: {str(e)}")
 
         return None
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
+        app.logger.error(f"Search error: {str(e)}")
         return None
 
 @app.route('/download', methods=['POST'])
