@@ -52,30 +52,16 @@ def download_track(title, artist):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Create config file
-        config_content = {
-            "audio_providers": ["youtube-music"],
-            "lyrics_providers": ["genius"],
-            "ffmpeg": "ffmpeg",
-            "bitrate": "320k",
-            "format": "mp3",
-            "threads": 1,
-            "sponsor_block": False
-        }
-
-        config_file = os.path.join(temp_dir, 'spotdl.json')
-        with open(config_file, 'w') as f:
-            json.dump(config_content, f)
-
-        # Construct spotdl command with config
+        # Construct spotdl command with correct arguments
         command = [
             '/var/www/spotifysave/env/bin/spotdl',
-            '--config', config_file,
+            '--audio', 'youtube-music',
+            '--format', 'mp3',
+            '--bitrate', '320k',
             '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
-            'download',
-            '--use-youtube-music',  # Force YouTube Music
-            '--search-query', '{artist} - {title} audio official',  # Better search query
-            f'"{title} - {artist}"'
+            '--search-query', '{artist} {title} audio',
+            'download',  # operation must come before the query
+            f'{title} - {artist}'
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
@@ -95,6 +81,7 @@ def download_track(title, artist):
         if process.stderr:
             app.logger.error(f"Command error: {process.stderr}")
 
+        # Check for downloaded files
         files = os.listdir(temp_dir)
         mp3_files = [f for f in files if f.endswith('.mp3')]
 
