@@ -113,7 +113,8 @@ downloadTrack.addEventListener('click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: currentTrackInfo.title,
-                artist: currentTrackInfo.artist
+                artist: currentTrackInfo.artist,
+                url: currentTrackInfo.url  // Include the Spotify URL
             })
         });
 

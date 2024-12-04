@@ -1,12 +1,14 @@
-import logging
-import os
-import tempfile
-from datetime import timedelta
-
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+import yt_dlp
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
-from spotdl import Spotdl
+import re
+from datetime import timedelta
+from pathlib import Path
+import os
+import logging
+import tempfile
+import subprocess
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -44,7 +46,7 @@ def get_track_info(url):
         return None
 
 
-def download_track(title, artist, spotify_url):  # Add spotify_url parameter
+def download_track(title, artist, spotify_url):
     try:
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
@@ -56,7 +58,7 @@ def download_track(title, artist, spotify_url):  # Add spotify_url parameter
             '--format', 'mp3',
             '--bitrate', '320k',
             'download',
-            spotify_url  # Use the actual Spotify URL
+            spotify_url
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
@@ -90,6 +92,7 @@ def download_track(title, artist, spotify_url):  # Add spotify_url parameter
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return None
+
 
 @app.route('/download', methods=['POST'])
 def download():
