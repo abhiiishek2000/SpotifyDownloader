@@ -44,44 +44,51 @@ def get_track_info(url):
         return None
 
 
-
-def download_track(title, artist):
+def download_track(title, artist, spotify_url):  # Add spotify_url parameter
     try:
         temp_dir = tempfile.mkdtemp()
-        spotdl = Spotdl()
+        os.chdir(temp_dir)
 
-        # Create song object
-        search_query = f"{title} {artist}"
-        app.logger.debug(f"Searching for: {search_query}")
+        # Use direct Spotify URL for more accurate download
+        command = [
+            '/var/www/spotifysave/env/bin/spotdl',
+            '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
+            '--format', 'mp3',
+            '--bitrate', '320k',
+            'download',
+            spotify_url  # Use the actual Spotify URL
+        ]
 
-        # Search for songs
-        songs = spotdl.search([search_query])
+        app.logger.debug(f"Running command: {' '.join(command)}")
 
-        if songs:
-            # Download the first matching song
-            song = songs[0]
-            app.logger.debug(f"Found song: {song.name} by {song.artist}")
+        env = os.environ.copy()
+        env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
 
-            try:
-                # Set output path
-                output_path = os.path.join(temp_dir, f"{title} - {artist}.mp3")
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=300
+        )
 
-                # Download the song
-                download_info = spotdl.download(songs[0])
+        app.logger.debug(f"Command output: {process.stdout}")
+        if process.stderr:
+            app.logger.error(f"Command error: {process.stderr}")
 
-                if download_info and os.path.exists(download_info[0]):
-                    # Move file to desired location if needed
-                    if download_info[0] != output_path:
-                        os.rename(download_info[0], output_path)
-                    return output_path
+        files = os.listdir(temp_dir)
+        mp3_files = [f for f in files if f.endswith('.mp3')]
 
-            except Exception as e:
-                app.logger.error(f"Download error: {str(e)}")
+        if mp3_files:
+            file_path = os.path.join(temp_dir, mp3_files[0])
+            if os.path.exists(file_path):
+                app.logger.info(f"Successfully downloaded: {file_path}")
+                return file_path
 
         return None
 
     except Exception as e:
-        app.logger.error(f"Search error: {str(e)}")
+        app.logger.error(f"Download error: {str(e)}")
         return None
 
 @app.route('/download', methods=['POST'])
@@ -89,11 +96,12 @@ def download():
     try:
         title = request.json.get('title')
         artist = request.json.get('artist')
+        spotify_url = request.json.get('url')  # Get URL from request
 
-        if not title or not artist:
-            return jsonify({'error': 'Title and artist required'}), 400
+        if not all([title, artist, spotify_url]):
+            return jsonify({'error': 'Title, artist and URL required'}), 400
 
-        file_path = download_track(title, artist)
+        file_path = download_track(title, artist, spotify_url)
         if file_path and os.path.exists(file_path):
             return send_file(
                 file_path,
