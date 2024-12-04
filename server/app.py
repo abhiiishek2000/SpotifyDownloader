@@ -9,8 +9,6 @@ import os
 import logging
 import tempfile
 import subprocess
-from spotdl import Spotdl
-from spotdl.types.options import DownloadOptions
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -18,8 +16,6 @@ app = Flask(__name__,
             static_folder='../src',
             static_url_path='',
             template_folder='../src')
-
-os.system('pip install -U yt-dlp')
 
 
 @app.route('/images/<path:filename>')
@@ -55,26 +51,30 @@ def download_track(title, artist):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Use spotdl CLI command instead of Python API
-        search_query = f"{title} - {artist}"
+        # Construct spotdl command
         command = [
-            'spotdl',
+            '/var/www/spotifysave/env/bin/spotdl',  # Full path to spotdl
             '--output', temp_dir,
             '--format', 'mp3',
             '--bitrate', '320k',
             'download',
-            f'"{search_query}"'
+            f"{title} - {artist}"
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
 
+        # Run spotdl command
         process = subprocess.run(
             command,
             capture_output=True,
             text=True
         )
 
-        # Check if download was successful
+        app.logger.debug(f"Command output: {process.stdout}")
+        if process.stderr:
+            app.logger.error(f"Command error: {process.stderr}")
+
+        # Check for downloaded files
         files = os.listdir(temp_dir)
         mp3_files = [f for f in files if f.endswith('.mp3')]
 
@@ -83,8 +83,6 @@ def download_track(title, artist):
             if os.path.exists(file_path):
                 return file_path
 
-        app.logger.error(f"SpotDL Output: {process.stdout}")
-        app.logger.error(f"SpotDL Error: {process.stderr}")
         return None
 
     except Exception as e:
