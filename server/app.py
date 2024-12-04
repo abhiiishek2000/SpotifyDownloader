@@ -51,23 +51,33 @@ def download_track(title, artist):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Construct spotdl command
+        # Construct spotdl command with additional options
         command = [
-            '/var/www/spotifysave/env/bin/spotdl',  # Full path to spotdl
+            '/var/www/spotifysave/env/bin/spotdl',
             '--output', temp_dir,
             '--format', 'mp3',
             '--bitrate', '320k',
+            '--no-cache',  # Add this to avoid caching issues
+            '--audio-provider', 'youtube-music',  # Specify YouTube Music as provider
+            '--search-query', '{artist} - {track-name} audio',  # Better search format
+            '--download-ffmpeg',  # Ensure ffmpeg is available
             'download',
             f"{title} - {artist}"
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
 
-        # Run spotdl command
+        # Set environment variables for the subprocess
+        env = os.environ.copy()
+        env['PATH'] = f"/var/www/spotifysave/env/bin:{env.get('PATH', '')}"
+
+        # Run spotdl command with extended timeout
         process = subprocess.run(
             command,
             capture_output=True,
-            text=True
+            text=True,
+            env=env,
+            timeout=300  # 5 minutes timeout
         )
 
         app.logger.debug(f"Command output: {process.stdout}")
@@ -85,10 +95,12 @@ def download_track(title, artist):
 
         return None
 
+    except subprocess.TimeoutExpired:
+        app.logger.error("Download timed out")
+        return None
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return None
-
 
 @app.route('/download', methods=['POST'])
 def download():
