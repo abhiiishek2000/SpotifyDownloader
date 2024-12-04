@@ -81,7 +81,15 @@ downloadBtn.addEventListener('click', async () => {
         const data = await response.json();
         if (data.error) throw new Error(data.error);
 
-        currentTrackInfo = data;
+        // Store complete track info including Spotify URL
+        currentTrackInfo = {
+            title: data.title,
+            artist: data.artist,
+            image: data.image,
+            duration: data.duration,
+            spotifyUrl: url  // Store the Spotify URL
+        };
+
         trackImage.src = data.image;
         trackTitle.textContent = data.title;
         trackArtist.textContent = data.artist;
@@ -114,7 +122,7 @@ downloadTrack.addEventListener('click', async () => {
             body: JSON.stringify({
                 title: currentTrackInfo.title,
                 artist: currentTrackInfo.artist,
-                url: currentTrackInfo.url  // Include the Spotify URL
+                url: currentTrackInfo.spotifyUrl  // Use the stored Spotify URL
             })
         });
 
@@ -127,7 +135,6 @@ downloadTrack.addEventListener('click', async () => {
         const url = window.URL.createObjectURL(blob);
 
         const a = document.createElement('a');
-        a.style.display = 'none';
         a.href = url;
         a.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
         document.body.appendChild(a);
@@ -135,11 +142,16 @@ downloadTrack.addEventListener('click', async () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
-        progressBar.style.display = 'none';
-        downloadTrack.style.display = 'block';
-        downloadTrack.textContent = 'Downloaded';
-        downloadTrack.disabled = true;
+        progressElement.style.width = '100%';
+        progressText.textContent = 'Download complete!';
         showSuccess('Download complete!');
+
+        setTimeout(() => {
+            progressBar.style.display = 'none';
+            downloadTrack.style.display = 'block';
+            downloadTrack.textContent = 'Downloaded';
+            downloadTrack.disabled = true;
+        }, 2000);
 
     } catch (error) {
         showError('Download failed: ' + error.message);
