@@ -51,17 +51,15 @@ def download_track(title, artist):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Construct spotdl command
+        # Construct spotdl command with correct syntax
         command = [
             '/var/www/spotifysave/env/bin/spotdl',
-            '--output', temp_dir,
+            '--audio', 'youtube-music',  # Set audio provider
+            '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
             '--format', 'mp3',
             '--bitrate', '320k',
-            '--no-cache',
-            '--audio-provider', 'youtube-music',
-            'download',
-            '--yes',  # Auto-answer yes to prompts
-            f'"{title} - {artist}"'
+            'download',  # Operation must come before the query
+            f'{title} - {artist}'  # The search query
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
@@ -69,7 +67,7 @@ def download_track(title, artist):
         # Set environment variables
         env = os.environ.copy()
         env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
-        env['PYTHONUNBUFFERED'] = '1'  # Ensure Python output isn't buffered
+        env['PYTHONUNBUFFERED'] = '1'
 
         # Run spotdl command
         process = subprocess.run(
@@ -91,6 +89,7 @@ def download_track(title, artist):
         if mp3_files:
             file_path = os.path.join(temp_dir, mp3_files[0])
             if os.path.exists(file_path):
+                app.logger.info(f"Successfully downloaded: {file_path}")
                 return file_path
 
         return None
