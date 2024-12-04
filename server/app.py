@@ -9,6 +9,7 @@ import os
 import logging
 import tempfile
 import subprocess
+import json
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -23,53 +24,42 @@ def serve_image(filename):
     return send_from_directory('../public/images', filename)
 
 
-def get_track_info(url):
-    try:
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        title = soup.find('meta', property='og:title')['content']
-        description = soup.find('meta', property='og:description')['content']
-        image = soup.find('meta', property='og:image')['content']
-        duration = soup.find('meta', property='music:duration')
-        duration = str(timedelta(seconds=int(duration['content']))) if duration else "Unknown"
-
-        return {
-            'title': title,
-            'artist': description.split('·')[0].strip(),
-            'image': image,
-            'duration': duration,
-            'url': url
-        }
-    except Exception as e:
-        app.logger.error(f"Error getting track info: {str(e)}")
-        return None
-
-
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Construct spotdl command with correct syntax
+        # Create config file
+        config_content = {
+            "audio_providers": ["youtube-music"],
+            "lyrics_providers": ["genius"],
+            "ffmpeg": "ffmpeg",
+            "bitrate": "320k",
+            "format": "mp3",
+            "threads": 1,
+            "sponsor_block": False
+        }
+
+        config_file = os.path.join(temp_dir, 'spotdl.json')
+        with open(config_file, 'w') as f:
+            json.dump(config_content, f)
+
+        # Construct spotdl command with config
         command = [
             '/var/www/spotifysave/env/bin/spotdl',
-            '--audio', 'youtube-music',  # Set audio provider
+            '--config', config_file,
             '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
-            '--format', 'mp3',
-            '--bitrate', '320k',
-            'download',  # Operation must come before the query
-            f'{title} - {artist}'  # The search query
+            'download',
+            '--use-youtube-music',  # Force YouTube Music
+            '--search-query', '{artist} - {title} audio official',  # Better search query
+            f'"{title} - {artist}"'
         ]
 
         app.logger.debug(f"Running command: {' '.join(command)}")
 
-        # Set environment variables
         env = os.environ.copy()
         env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
-        env['PYTHONUNBUFFERED'] = '1'
 
-        # Run spotdl command
         process = subprocess.run(
             command,
             capture_output=True,
@@ -82,7 +72,6 @@ def download_track(title, artist):
         if process.stderr:
             app.logger.error(f"Command error: {process.stderr}")
 
-        # Check for downloaded files
         files = os.listdir(temp_dir)
         mp3_files = [f for f in files if f.endswith('.mp3')]
 
@@ -94,9 +83,6 @@ def download_track(title, artist):
 
         return None
 
-    except subprocess.TimeoutExpired:
-        app.logger.error("Download timed out")
-        return None
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return None
