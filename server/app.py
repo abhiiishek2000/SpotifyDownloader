@@ -55,30 +55,36 @@ def download_track(title, artist):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Initialize SpotDL without any arguments
-        spotdl = Spotdl()
-
-        # Search query
+        # Use spotdl CLI command instead of Python API
         search_query = f"{title} - {artist}"
-        app.logger.debug(f"Searching for: {search_query}")
+        command = [
+            'spotdl',
+            '--output', temp_dir,
+            '--format', 'mp3',
+            '--bitrate', '320k',
+            'download',
+            f'"{search_query}"'
+        ]
 
-        # Search for songs
-        songs = spotdl.search([search_query])
+        app.logger.debug(f"Running command: {' '.join(command)}")
 
-        if songs:
-            # Set output file path
-            output_file = os.path.join(temp_dir, f"{title} - {artist}.mp3")
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            text=True
+        )
 
-            # Download song
-            try:
-                downloaded_song = spotdl.download(songs[0])
-                if downloaded_song and os.path.exists(downloaded_song[0]):
-                    # Move file to desired location
-                    os.rename(downloaded_song[0], output_file)
-                    return output_file
-            except Exception as download_error:
-                app.logger.error(f"Download error: {str(download_error)}")
+        # Check if download was successful
+        files = os.listdir(temp_dir)
+        mp3_files = [f for f in files if f.endswith('.mp3')]
 
+        if mp3_files:
+            file_path = os.path.join(temp_dir, mp3_files[0])
+            if os.path.exists(file_path):
+                return file_path
+
+        app.logger.error(f"SpotDL Output: {process.stdout}")
+        app.logger.error(f"SpotDL Error: {process.stderr}")
         return None
 
     except Exception as e:
