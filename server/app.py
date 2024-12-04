@@ -24,6 +24,29 @@ def serve_image(filename):
     return send_from_directory('../public/images', filename)
 
 
+def get_track_info(url):
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        title = soup.find('meta', property='og:title')['content']
+        description = soup.find('meta', property='og:description')['content']
+        image = soup.find('meta', property='og:image')['content']
+        duration = soup.find('meta', property='music:duration')
+        duration = str(timedelta(seconds=int(duration['content']))) if duration else "Unknown"
+
+        return {
+            'title': title,
+            'artist': description.split('·')[0].strip(),
+            'image': image,
+            'duration': duration,
+            'url': url
+        }
+    except Exception as e:
+        app.logger.error(f"Error getting track info: {str(e)}")
+        return None
+
+
 def download_track(title, artist):
     try:
         temp_dir = tempfile.mkdtemp()
