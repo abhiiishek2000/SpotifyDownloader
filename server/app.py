@@ -85,30 +85,19 @@ def download():
             command = [
                 '/var/www/spotifysave/venv/bin/spotdl',
                 'download',
+                '--audio', 'youtube',
+                '--output', '{temp_dir}/%(title)s.%(ext)s',
+                '--yt-dlp-args', '--force-ipv4 --no-check-certificates',
                 spotify_url
             ]
 
-            process = subprocess.run(command,
-                                     capture_output=True,
-                                     text=True,
-                                     cwd=temp_dir)
-
-            app.logger.debug(f"Download output: {process.stdout}")
-            app.logger.debug(f"Download error: {process.stderr}")
+            process = subprocess.run(command, capture_output=True, text=True)
 
             mp3_files = list(Path(temp_dir).glob('*.mp3'))
             if mp3_files and mp3_files[0].stat().st_size > 1024:
-                return send_file(
-                    str(mp3_files[0]),
-                    mimetype='audio/mpeg',
-                    as_attachment=True,
-                    download_name=mp3_files[0].name
-                )
+                return send_file(str(mp3_files[0]), mimetype='audio/mpeg', as_attachment=True)
 
-            return jsonify({
-                'error': 'Download failed',
-                'details': process.stderr or process.stdout
-            }), 500
+            return jsonify({'error': f"Download failed: {process.stderr}"}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
