@@ -80,6 +80,7 @@ def download_track(title, artist, spotify_url):
 def download():
     try:
         spotify_url = request.json.get('url')
+        cookie_file = '/var/www/spotifysave/cookies.txt'  # Create this file with YouTube cookies
 
         with tempfile.TemporaryDirectory() as temp_dir:
             match = re.search(r'https://music\.youtube\.com/watch\?v=[\w-]+',
@@ -94,7 +95,7 @@ def download():
                 '-x',
                 '--audio-format', 'mp3',
                 '--audio-quality', '0',
-                '--cookies-from-browser', 'chrome',
+                '--cookies', cookie_file,
                 '-o', f'{temp_dir}/%(title)s.%(ext)s',
                 match.group(0)
             ]
