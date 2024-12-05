@@ -50,8 +50,9 @@ def get_track_info(url):
 
 def download_track(title, artist, spotify_url):
     try:
+        spotdl_path = '/usr/local/bin/spotdl'  # Use absolute path
         process = subprocess.run(
-            ['spotdl', '--output', '-', spotify_url],
+            [spotdl_path, '--output', '-', spotify_url],
             capture_output=True,
             env={'PATH': '/usr/local/bin:/usr/bin:/bin'},
             timeout=300
