@@ -10,6 +10,7 @@ import logging
 import tempfile
 import subprocess
 import json
+import io
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -49,38 +50,18 @@ def get_track_info(url):
 
 def download_track(title, artist, spotify_url):
     try:
-        temp_dir = tempfile.mkdtemp()
-        os.chdir(temp_dir)
-
-        # Get spotdl path dynamically
-        spotdl_path = subprocess.run(['which', 'spotdl'],
-                                     capture_output=True,
-                                     text=True).stdout.strip()
-
-        if not spotdl_path:
-            app.logger.error("spotdl not found in PATH")
-            return None
-
-        command = [spotdl_path, spotify_url]
-
         process = subprocess.run(
-            command,
+            ['spotdl', '--output', '-', spotify_url],
             capture_output=True,
-            text=True,
+            env={'PATH': '/usr/local/bin:/usr/bin:/bin'},
             timeout=300
         )
 
-        if process.stderr:
-            app.logger.error(f"Download error: {process.stderr}")
+        if process.returncode != 0:
+            app.logger.error(f"spotdl error: {process.stderr}")
             return None
 
-        # Find downloaded file
-        mp3_files = [f for f in os.listdir(temp_dir) if f.endswith('.mp3')]
-
-        if mp3_files:
-            return os.path.join(temp_dir, mp3_files[0])
-
-        return None
+        return process.stdout
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
@@ -91,18 +72,18 @@ def download():
     try:
         title = request.json.get('title')
         artist = request.json.get('artist')
-        spotify_url = request.json.get('url')  # Get URL from request
+        spotify_url = request.json.get('url')
 
         if not all([title, artist, spotify_url]):
-            return jsonify({'error': 'Title, artist and URL required'}), 400
+            return jsonify({'error': 'Missing required fields'}), 400
 
-        file_path = download_track(title, artist, spotify_url)
-        if file_path and os.path.exists(file_path):
+        audio_data = download_track(title, artist, spotify_url)
+        if audio_data:
             return send_file(
-                file_path,
+                io.BytesIO(audio_data),
+                mimetype='audio/mpeg',
                 as_attachment=True,
-                download_name=f'{title} - {artist}.mp3',
-                mimetype='audio/mpeg'
+                download_name=f'{title} - {artist}.mp3'
             )
         return jsonify({'error': 'Download failed'}), 500
 
