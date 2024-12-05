@@ -61,37 +61,14 @@ def get_track_info(url):
 
 def download_track(title, artist, spotify_url):
     try:
-        spotdl_path = '/var/www/spotifysave/venv/bin/spotdl'
-        temp_dir = tempfile.mkdtemp()
-
-        command = [
-            spotdl_path,
-            'download',  # Add download command
-            '--output', temp_dir,
-            '--format', 'mp3',
-            spotify_url
-        ]
+        output_path = f"{title} - {artist}.mp3"
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url, '--output', output_path]
 
         app.logger.debug(f"Command: {' '.join(command)}")
+        process = subprocess.run(command, capture_output=True, text=True)
 
-        process = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            env={
-                'PATH': '/var/www/spotifysave/venv/bin:/usr/bin:/bin',
-                'VIRTUAL_ENV': '/var/www/spotifysave/venv',
-                'HOME': '/var/www/spotifysave'
-            }
-        )
-
-        app.logger.debug(f"Output: {process.stdout}")
-        app.logger.debug(f"Error: {process.stderr}")
-
-        mp3_files = [f for f in os.listdir(temp_dir) if f.endswith('.mp3')]
-        if mp3_files:
-            return os.path.join(temp_dir, mp3_files[0])
-
+        if os.path.exists(output_path):
+            return output_path
         return None
 
     except Exception as e:
