@@ -65,53 +65,42 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        # Create a temporary directory for downloads
         temp_dir = os.path.join(os.getcwd(), 'temp_downloads')
         os.makedirs(temp_dir, exist_ok=True)
 
-        # Change working directory to temp_dir
-        original_dir = os.getcwd()
-        os.chdir(temp_dir)
+        safe_filename = f"{title} - {artist}".replace('/', '_').replace('\\', '_')
+        output_path = os.path.join(temp_dir, f"{safe_filename}.mp3")
+
+        command = ['/var/www/spotifysave/venv/bin/spotdl',
+                   '--output', output_path,
+                   spotify_url]
+
+        app.logger.debug(f"Command: {' '.join(command)}")
+        process = subprocess.run(command, capture_output=True, text=True)
+
+        if process.returncode != 0:
+            app.logger.error(f"spotdl error: {process.stderr}")
+            return jsonify({'error': 'Download failed'}), 500
+
+        if not os.path.exists(output_path):
+            app.logger.error("File not found after download")
+            return jsonify({'error': 'File not found after download'}), 500
 
         try:
-            # Run spotdl with proper arguments
-            command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url, '--output', '{title} - {artist}.mp3']
-            app.logger.debug(f"Running command: {' '.join(command)}")
-
-            process = subprocess.run(command, capture_output=True, text=True)
-
-            if process.returncode != 0:
-                app.logger.error(f"spotdl error: {process.stderr}")
-                return jsonify({'error': 'Download failed'}), 500
-
-            # Find the downloaded file
-            downloaded_files = [f for f in os.listdir() if f.endswith('.mp3')]
-            if not downloaded_files:
-                return jsonify({'error': 'No file downloaded'}), 500
-
-            file_path = os.path.join(temp_dir, downloaded_files[0])
-
-            # Read file and send
-            with open(file_path, 'rb') as file:
+            with open(output_path, 'rb') as file:
                 file_data = file.read()
-
-            # Clean up
-            os.remove(file_path)
-
             return send_file(
                 io.BytesIO(file_data),
                 mimetype='audio/mpeg',
                 as_attachment=True,
-                download_name=f"{title} - {artist}.mp3"
+                download_name=f"{safe_filename}.mp3"
             )
-
         finally:
-            # Always return to original directory and cleanup
-            os.chdir(original_dir)
             try:
+                os.remove(output_path)
                 os.rmdir(temp_dir)
-            except:
-                pass
+            except Exception as e:
+                app.logger.error(f"Cleanup error: {str(e)}")
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
