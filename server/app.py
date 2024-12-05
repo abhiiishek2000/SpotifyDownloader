@@ -82,27 +82,26 @@ def download():
         spotify_url = request.json.get('url')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # First confirm the track exists and is downloadable
-            precheck = subprocess.run(['/var/www/spotifysave/venv/bin/spotdl', 'url', spotify_url],
-                                      capture_output=True,
-                                      text=True)
-            if precheck.returncode != 0:
-                return jsonify({'error': 'Invalid Spotify URL'}), 400
+            # Basic command with version check first
+            version_cmd = ['/var/www/spotifysave/venv/bin/spotdl', '--version']
+            version = subprocess.run(version_cmd, capture_output=True, text=True)
+            app.logger.debug(f"Spotdl version: {version.stdout}")
 
-            # Try with additional YouTube download options
             command = [
                 '/var/www/spotifysave/venv/bin/spotdl',
                 'download',
                 '--format', 'mp3',
-                '--output', temp_dir,
-                '--threads', '1',
-                '--yt-dlp-args', '--force-ipv4 --no-check-certificates',
+                '--path', temp_dir,
                 spotify_url
             ]
 
             process = subprocess.run(command, capture_output=True, text=True)
+            app.logger.debug(f"Download output: {process.stdout}")
+            app.logger.debug(f"Download error: {process.stderr}")
 
             mp3_files = list(Path(temp_dir).glob('*.mp3'))
+            app.logger.debug(f"Files found: {mp3_files}")
+
             if mp3_files and mp3_files[0].stat().st_size > 1024:
                 return send_file(
                     str(mp3_files[0]),
@@ -111,7 +110,10 @@ def download():
                     download_name=mp3_files[0].name
                 )
 
-            return jsonify({'error': 'Download failed. Please try again.'}), 500
+            return jsonify({
+                'error': 'Download failed',
+                'details': process.stderr or process.stdout
+            }), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
