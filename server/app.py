@@ -82,23 +82,23 @@ def download():
         spotify_url = request.json.get('url')
         base_dir = '/var/www/spotifysave'
 
-        # Run spotdl directly in the base directory
-        process = subprocess.run([
-            f'{base_dir}/venv/bin/spotdl',
-            '--format', 'mp3',
-            spotify_url
-        ], cwd=base_dir)
+        command = [f'{base_dir}/venv/bin/spotdl', spotify_url]
+        process = subprocess.run(command,
+                                 cwd=base_dir,
+                                 capture_output=True,
+                                 text=True)
 
-        # Find the downloaded MP3 file
-        mp3_files = [f for f in os.listdir(base_dir) if
-                     f.endswith('.mp3') and os.path.isfile(os.path.join(base_dir, f))]
+        app.logger.debug(f"Command output: {process.stdout}")
+        app.logger.debug(f"Command error: {process.stderr}")
+        app.logger.debug(f"Files in directory: {os.listdir(base_dir)}")
+
+        mp3_files = [f for f in os.listdir(base_dir) if f.endswith('.mp3')]
 
         if mp3_files:
-            # Send first MP3 file found
             file_path = os.path.join(base_dir, mp3_files[0])
             with open(file_path, 'rb') as f:
                 data = f.read()
-            os.remove(file_path)  # Clean up
+            os.remove(file_path)
             return send_file(
                 io.BytesIO(data),
                 mimetype='audio/mpeg',
@@ -110,7 +110,6 @@ def download():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
