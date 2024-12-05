@@ -82,34 +82,45 @@ def download():
         spotify_url = request.json.get('url')
         base_dir = '/var/www/spotifysave'
 
-        command = [f'{base_dir}/venv/bin/spotdl', spotify_url]
-        process = subprocess.run(command,
-                                 cwd=base_dir,
-                                 capture_output=True,
-                                 text=True)
+        # First run spotdl to get the audio
+        subprocess.run([f'{base_dir}/venv/bin/spotdl', spotify_url],
+                       cwd=base_dir,
+                       check=True)
 
-        app.logger.debug(f"Command output: {process.stdout}")
-        app.logger.debug(f"Command error: {process.stderr}")
-        app.logger.debug(f"Files in directory: {os.listdir(base_dir)}")
+        # Find downloaded audio file
+        audio_files = [f for f in os.listdir(base_dir)
+                       if os.path.isfile(os.path.join(base_dir, f)) and
+                       f.endswith(('.mp3', '.m4a', '.wav'))]
 
-        mp3_files = [f for f in os.listdir(base_dir) if f.endswith('.mp3')]
+        if not audio_files:
+            return jsonify({'error': 'Download failed'}), 500
 
-        if mp3_files:
-            file_path = os.path.join(base_dir, mp3_files[0])
-            with open(file_path, 'rb') as f:
-                data = f.read()
-            os.remove(file_path)
-            return send_file(
-                io.BytesIO(data),
-                mimetype='audio/mpeg',
-                as_attachment=True,
-                download_name=mp3_files[0]
-            )
+        input_file = os.path.join(base_dir, audio_files[0])
+        output_file = input_file.rsplit('.', 1)[0] + '_converted.mp3'
 
-        return jsonify({'error': 'No file downloaded'}), 500
+        # Convert to MP3 using FFmpeg
+        subprocess.run(['ffmpeg', '-i', input_file,
+                        '-codec:a', 'libmp3lame', '-q:a', '0',
+                        output_file], check=True)
+
+        # Send converted file
+        with open(output_file, 'rb') as f:
+            data = f.read()
+
+        # Cleanup
+        os.remove(input_file)
+        os.remove(output_file)
+
+        return send_file(
+            io.BytesIO(data),
+            mimetype='audio/mpeg',
+            as_attachment=True,
+            download_name=os.path.basename(output_file)
+        )
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
