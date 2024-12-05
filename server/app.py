@@ -82,27 +82,24 @@ def download():
         spotify_url = request.json.get('url')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # First get YouTube URL from spotdl
-            spotdl_cmd = [
-                '/var/www/spotifysave/venv/bin/spotdl',
-                'url',
-                spotify_url
-            ]
+            # Extract YouTube URL from spotdl output
+            spotdl_cmd = ['/var/www/spotifysave/venv/bin/spotdl', 'url', spotify_url]
             spotdl_process = subprocess.run(spotdl_cmd, capture_output=True, text=True)
-            yt_url = spotdl_process.stdout.strip()
 
-            if not yt_url:
+            # Find YouTube URL in output
+            match = re.search(r'https://music\.youtube\.com/watch\?v=[\w-]+', spotdl_process.stdout)
+            if not match:
                 return jsonify({'error': 'Could not find YouTube URL'}), 500
 
-            # Then download with yt-dlp
+            yt_url = match.group(0)
+
+            # Download using yt-dlp
             yt_dlp_cmd = [
                 'yt-dlp',
                 '-x',
                 '--audio-format', 'mp3',
                 '--audio-quality', '0',
                 '-o', f'{temp_dir}/%(title)s.%(ext)s',
-                '--force-ipv4',
-                '--no-check-certificates',
                 yt_url
             ]
 
