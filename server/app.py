@@ -51,9 +51,9 @@ def get_track_info(url):
 def download_track(title, artist, spotify_url):
     try:
         spotdl_path = '/var/www/spotifysave/venv/bin/spotdl'
-
-        # Create temp dir for download
         temp_dir = tempfile.mkdtemp()
+
+        app.logger.info(f"Starting download for {spotify_url} to {temp_dir}")
 
         command = [
             spotdl_path,
@@ -61,30 +61,39 @@ def download_track(title, artist, spotify_url):
             '--output', temp_dir
         ]
 
+        app.logger.info(f"Running command: {' '.join(command)}")
+
         process = subprocess.run(
             command,
             capture_output=True,
             text=True,
             env={
                 'PATH': '/var/www/spotifysave/venv/bin:/usr/local/bin:/usr/bin:/bin',
-                'VIRTUAL_ENV': '/var/www/spotifysave/venv'
+                'VIRTUAL_ENV': '/var/www/spotifysave/venv',
+                'HOME': '/var/www/spotifysave'  # Add HOME env var
             },
             timeout=300
         )
 
+        app.logger.info(f"Process stdout: {process.stdout}")
+        app.logger.info(f"Process stderr: {process.stderr}")
+        app.logger.info(f"Return code: {process.returncode}")
+
         if process.returncode != 0:
-            app.logger.error(f"spotdl error: {process.stderr}")
+            app.logger.error(f"spotdl failed: {process.stderr}")
             return None
 
-        # Find downloaded file
         mp3_files = [f for f in os.listdir(temp_dir) if f.endswith('.mp3')]
+        app.logger.info(f"Found MP3 files: {mp3_files}")
+
         if mp3_files:
             return os.path.join(temp_dir, mp3_files[0])
 
+        app.logger.error("No MP3 files found after download")
         return None
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
+        app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return None
 
 @app.route('/download', methods=['POST'])
