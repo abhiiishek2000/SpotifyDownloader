@@ -13,6 +13,13 @@ import json
 import io
 import logging
 from logging.handlers import RotatingFileHandler
+from flask import Flask, send_file, jsonify
+import requests
+import re
+import tempfile
+import json
+from pathlib import Path
+import urllib.parse
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -76,40 +83,84 @@ def download_track(title, artist, spotify_url):
         return None
 
 
+def search_youtube_music(query):
+    try:
+        # Encode query for URL
+        encoded_query = urllib.parse.quote(query)
+
+        # Make request to YouTube Music search
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        search_url = f"https://music.youtube.com/search?q={encoded_query}"
+        response = requests.get(search_url, headers=headers)
+
+        # Extract video ID from first result using regex
+        video_id_match = re.search(r'videoId":"([^"]+)"', response.text)
+        if video_id_match:
+            return video_id_match.group(1)
+        return None
+    except Exception as e:
+        print(f"Search error: {str(e)}")
+        return None
+
+
+def download_audio(video_id, output_path):
+    try:
+        # Get video info
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(video_url, headers=headers)
+
+        # Extract audio stream URL using regex
+        audio_url_match = re.search(r'"url":"([^"]+audioonly[^"]+)"', response.text)
+        if not audio_url_match:
+            return False
+
+        audio_url = audio_url_match.group(1).replace('\\u0026', '&')
+
+        # Download audio file
+        audio_response = requests.get(audio_url, headers=headers)
+        if audio_response.status_code == 200:
+            with open(output_path, 'wb') as f:
+                f.write(audio_response.content)
+            return True
+
+        return False
+    except Exception as e:
+        print(f"Download error: {str(e)}")
+        return False
+
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        spotify_url = request.json.get('url')
-        cookie_file = '/var/www/spotifysave/cookies.txt'  # Create this file with YouTube cookies
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        search_query = f"{title} {artist} audio"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            match = re.search(r'https://music\.youtube\.com/watch\?v=[\w-]+',
-                              subprocess.run(['/var/www/spotifysave/venv/bin/spotdl', 'url', spotify_url],
-                                             capture_output=True, text=True).stdout)
+            output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
 
-            if not match:
-                return jsonify({'error': 'YouTube URL not found'}), 500
+            # Search and get video ID
+            video_id = search_youtube_music(search_query)
+            if not video_id:
+                return jsonify({'error': 'Song not found'}), 404
 
-            yt_dlp_cmd = [
-                'yt-dlp',
-                '-x',
-                '--audio-format', 'mp3',
-                '--audio-quality', '0',
-                '--cookies', cookie_file,
-                '-o', f'{temp_dir}/%(title)s.%(ext)s',
-                match.group(0)
-            ]
+            # Download audio
+            if download_audio(video_id, output_path):
+                return send_file(
+                    str(output_path),
+                    mimetype='audio/mpeg',
+                    as_attachment=True,
+                    download_name=output_path.name
+                )
 
-            process = subprocess.run(yt_dlp_cmd, capture_output=True, text=True)
-
-            mp3_files = list(Path(temp_dir).glob('*.mp3'))
-            if mp3_files and mp3_files[0].stat().st_size > 1024:
-                return send_file(str(mp3_files[0]), mimetype='audio/mpeg', as_attachment=True)
-
-            return jsonify({'error': f"Download failed: {process.stderr}"}), 500
+            return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 @app.route('/')
 def index():
