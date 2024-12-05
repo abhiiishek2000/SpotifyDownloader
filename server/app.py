@@ -82,34 +82,30 @@ def download():
         spotify_url = request.json.get('url')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Extract YouTube URL from spotdl output
-            spotdl_cmd = ['/var/www/spotifysave/venv/bin/spotdl', 'url', spotify_url]
-            spotdl_process = subprocess.run(spotdl_cmd, capture_output=True, text=True)
+            match = re.search(r'https://music\.youtube\.com/watch\?v=[\w-]+',
+                              subprocess.run(['/var/www/spotifysave/venv/bin/spotdl', 'url', spotify_url],
+                                             capture_output=True, text=True).stdout)
 
-            # Find YouTube URL in output
-            match = re.search(r'https://music\.youtube\.com/watch\?v=[\w-]+', spotdl_process.stdout)
             if not match:
-                return jsonify({'error': 'Could not find YouTube URL'}), 500
+                return jsonify({'error': 'YouTube URL not found'}), 500
 
-            yt_url = match.group(0)
-
-            # Download using yt-dlp
             yt_dlp_cmd = [
                 'yt-dlp',
                 '-x',
                 '--audio-format', 'mp3',
                 '--audio-quality', '0',
+                '--cookies-from-browser', 'chrome',
                 '-o', f'{temp_dir}/%(title)s.%(ext)s',
-                yt_url
+                match.group(0)
             ]
 
-            yt_process = subprocess.run(yt_dlp_cmd, capture_output=True, text=True)
+            process = subprocess.run(yt_dlp_cmd, capture_output=True, text=True)
 
             mp3_files = list(Path(temp_dir).glob('*.mp3'))
             if mp3_files and mp3_files[0].stat().st_size > 1024:
                 return send_file(str(mp3_files[0]), mimetype='audio/mpeg', as_attachment=True)
 
-            return jsonify({'error': f"Download failed: {yt_process.stderr}"}), 500
+            return jsonify({'error': f"Download failed: {process.stderr}"}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
