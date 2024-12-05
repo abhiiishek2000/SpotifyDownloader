@@ -79,28 +79,51 @@ def download_track(title, artist, spotify_url):
 @app.route('/download', methods=['POST'])
 def download():
     try:
+        spotify_url = request.json.get('url')
         title = request.json.get('title')
         artist = request.json.get('artist')
-        spotify_url = request.json.get('url')
 
-        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
-        process = subprocess.run(command, capture_output=True)
+        # Create temp directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Change to temp directory
+            original_dir = os.getcwd()
+            os.chdir(temp_dir)
 
-        if process.returncode == 0:
-            filename = f"{title} - {artist}.mp3"
-            return send_file(
-                io.BytesIO(process.stdout),
-                mimetype='audio/mpeg',
-                as_attachment=True,
-                download_name=filename
-            )
+            try:
+                # Download command
+                process = subprocess.run([
+                    '/var/www/spotifysave/venv/bin/spotdl',
+                    'download',
+                    spotify_url
+                ], capture_output=True, text=True)
 
-        app.logger.error(f"spotdl error: {process.stderr.decode()}")
-        return jsonify({'error': 'Download failed'}), 500
+                if process.returncode != 0:
+                    app.logger.error(f"spotdl error: {process.stderr}")
+                    return jsonify({'error': 'Download failed'}), 500
+
+                # Find downloaded MP3
+                mp3_files = [f for f in os.listdir() if f.endswith('.mp3')]
+                if not mp3_files:
+                    return jsonify({'error': 'No file downloaded'}), 500
+
+                # Read file
+                with open(mp3_files[0], 'rb') as file:
+                    file_data = file.read()
+
+                return send_file(
+                    io.BytesIO(file_data),
+                    mimetype='audio/mpeg',
+                    as_attachment=True,
+                    download_name=f"{title} - {artist}.mp3"
+                )
+
+            finally:
+                os.chdir(original_dir)
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
