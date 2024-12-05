@@ -83,22 +83,19 @@ def download():
         downloads_dir = Path('/var/www/spotifysave/downloads')
         downloads_dir.mkdir(exist_ok=True)
 
-        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        command = ['/var/www/spotifysave/venv/bin/spotdl', 'download', spotify_url]
         process = subprocess.run(command, capture_output=True, text=True, cwd=str(downloads_dir))
 
-        # Find the downloaded file
         mp3_files = list(downloads_dir.glob('*.mp3'))
         if mp3_files and mp3_files[0].stat().st_size > 1024:
-            response = send_file(
-                str(mp3_files[0]),
-                mimetype='audio/mpeg',
-                as_attachment=True,
-                download_name=mp3_files[0].name
-            )
+            response = send_file(str(mp3_files[0]),
+                                 mimetype='audio/mpeg',
+                                 as_attachment=True,
+                                 download_name=mp3_files[0].name)
             mp3_files[0].unlink(missing_ok=True)
             return response
 
-        app.logger.error(f"No valid files found in {downloads_dir}")
+        app.logger.error(f"Download failed: {process.stderr}")
         return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
