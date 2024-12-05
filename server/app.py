@@ -51,12 +51,18 @@ def download_track(title, artist, spotify_url):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Use direct Spotify URL for more accurate download
+        # Updated command with more options
         command = [
             '/var/www/spotifysave/env/bin/spotdl',
+            '--audio', 'youtube',  # Use YouTube instead of YouTube Music
             '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
             '--format', 'mp3',
             '--bitrate', '320k',
+            '--user-agent',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            '--no-cache',  # Disable cache
+            '--dont-filter-results',  # Don't filter YouTube results
+            '--threads', '1',  # Use single thread for stability
             'download',
             spotify_url
         ]
