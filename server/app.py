@@ -75,6 +75,7 @@ def download_track(title, artist, spotify_url):
         app.logger.exception("Download failed")
         return None
 
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -82,20 +83,26 @@ def download():
         artist = request.json.get('artist')
         spotify_url = request.json.get('url')
 
-        if not all([title, artist, spotify_url]):
-            return jsonify({'error': 'Missing required fields'}), 400
+        output_path = f"{title} - {artist}.mp3"
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
 
-        audio_data = download_track(title, artist, spotify_url)
-        if audio_data:
+        process = subprocess.run(command, capture_output=True)
+
+        if os.path.exists(output_path):
+            with open(output_path, 'rb') as f:
+                data = f.read()
+            os.remove(output_path)  # Clean up
             return send_file(
-                io.BytesIO(audio_data),
+                io.BytesIO(data),
                 mimetype='audio/mpeg',
                 as_attachment=True,
-                download_name=f'{title} - {artist}.mp3'
+                download_name=output_path
             )
+
         return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
+        app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
