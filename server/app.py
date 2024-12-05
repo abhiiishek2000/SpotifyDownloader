@@ -52,44 +52,39 @@ def download_track(title, artist, spotify_url):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Simple command following official docs
-        command = [
-            '/var/www/spotifysave/env/bin/spotdl',
-            spotify_url
-        ]
+        # Get spotdl path dynamically
+        spotdl_path = subprocess.run(['which', 'spotdl'],
+                                     capture_output=True,
+                                     text=True).stdout.strip()
 
-        app.logger.debug(f"Running command: {' '.join(command)}")
+        if not spotdl_path:
+            app.logger.error("spotdl not found in PATH")
+            return None
 
-        env = os.environ.copy()
-        env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
+        command = [spotdl_path, spotify_url]
 
         process = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            env=env,
             timeout=300
         )
 
-        app.logger.debug(f"Command output: {process.stdout}")
         if process.stderr:
-            app.logger.error(f"Command error: {process.stderr}")
+            app.logger.error(f"Download error: {process.stderr}")
+            return None
 
         # Find downloaded file
-        files = os.listdir(temp_dir)
-        mp3_files = [f for f in files if f.endswith('.mp3')]
+        mp3_files = [f for f in os.listdir(temp_dir) if f.endswith('.mp3')]
 
         if mp3_files:
-            file_path = os.path.join(temp_dir, mp3_files[0])
-            if os.path.exists(file_path):
-                return file_path
+            return os.path.join(temp_dir, mp3_files[0])
 
         return None
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return None
-
 
 @app.route('/download', methods=['POST'])
 def download():
