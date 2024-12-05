@@ -83,9 +83,21 @@ def download():
 
         with tempfile.TemporaryDirectory() as temp_dir:
             command = ['/var/www/spotifysave/venv/bin/spotdl', 'download', spotify_url]
-            process = subprocess.run(command, capture_output=True, text=True, cwd=temp_dir)
+            process = subprocess.run(command,
+                                     capture_output=True,
+                                     text=True,
+                                     cwd=temp_dir)
+
+            app.logger.debug(f"Command output: {process.stdout}")
+            app.logger.debug(f"Command stderr: {process.stderr}")
+
+            if process.returncode != 0:
+                app.logger.error(f"Process failed with code {process.returncode}")
+                return jsonify({'error': process.stderr}), 500
 
             mp3_files = list(Path(temp_dir).glob('*.mp3'))
+            app.logger.debug(f"Found files: {mp3_files}")
+
             if mp3_files and mp3_files[0].stat().st_size > 1024:
                 return send_file(
                     str(mp3_files[0]),
@@ -94,8 +106,7 @@ def download():
                     download_name=mp3_files[0].name
                 )
 
-        app.logger.error(f"Download failed: {process.stderr}")
-        return jsonify({'error': 'Download failed'}), 500
+            return jsonify({'error': 'No valid files found'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
