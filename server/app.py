@@ -81,27 +81,28 @@ def download():
     try:
         spotify_url = request.json.get('url')
         command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
-        process = subprocess.run(command)
 
-        # Get the downloaded file
-        downloaded_files = [f for f in os.listdir() if f.endswith('.mp3')]
-        if not downloaded_files:
-            return jsonify({'error': 'No file downloaded'}), 500
+        process = subprocess.run(command,
+                                 capture_output=True,
+                                 cwd='/var/www/spotifysave/downloads')
 
-        file_path = downloaded_files[0]
-        if not os.path.isfile(file_path):
-            return jsonify({'error': 'Invalid file path'}), 500
+        mp3_files = [f for f in os.listdir('/var/www/spotifysave/downloads')
+                     if f.endswith('.mp3')]
 
-        with open(file_path, 'rb') as f:
-            data = f.read()
-        os.remove(file_path)
+        if mp3_files:
+            file_path = f'/var/www/spotifysave/downloads/{mp3_files[0]}'
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            os.remove(file_path)
 
-        return send_file(
-            io.BytesIO(data),
-            mimetype='audio/mpeg',
-            as_attachment=True,
-            download_name=file_path
-        )
+            return send_file(
+                io.BytesIO(data),
+                mimetype='audio/mpeg',
+                as_attachment=True,
+                download_name=mp3_files[0]
+            )
+
+        return jsonify({'error': 'No file downloaded'}), 500
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
