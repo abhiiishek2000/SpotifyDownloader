@@ -82,16 +82,10 @@ def download():
         spotify_url = request.json.get('url')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Basic command with version check first
-            version_cmd = ['/var/www/spotifysave/venv/bin/spotdl', '--version']
-            version = subprocess.run(version_cmd, capture_output=True, text=True)
-            app.logger.debug(f"Spotdl version: {version.stdout}")
-
             command = [
                 '/var/www/spotifysave/venv/bin/spotdl',
                 'download',
-                '--format', 'mp3',
-                '--path', temp_dir,
+                '--output', f'{temp_dir}/%(title)s.%(ext)s',
                 spotify_url
             ]
 
@@ -100,8 +94,6 @@ def download():
             app.logger.debug(f"Download error: {process.stderr}")
 
             mp3_files = list(Path(temp_dir).glob('*.mp3'))
-            app.logger.debug(f"Files found: {mp3_files}")
-
             if mp3_files and mp3_files[0].stat().st_size > 1024:
                 return send_file(
                     str(mp3_files[0]),
