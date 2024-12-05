@@ -79,35 +79,26 @@ def download_track(title, artist, spotify_url):
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        title = request.json.get('title')
-        artist = request.json.get('artist')
         spotify_url = request.json.get('url')
-
         downloads_dir = Path('/var/www/spotifysave/downloads')
         downloads_dir.mkdir(exist_ok=True)
 
-        # Clean filename: replace special chars with underscore and remove quotes
-        clean_title = re.sub(r'[^\w\s-]', '_', title.replace('"', '').replace("'", ""))
-        clean_artist = re.sub(r'[^\w\s-]', '_', artist.replace('"', '').replace("'", ""))
-        safe_filename = f"{clean_title} - {clean_artist}.mp3".replace(' ', '_')
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        process = subprocess.run(command, capture_output=True, text=True, cwd=str(downloads_dir))
 
-        output_path = downloads_dir / safe_filename
-
-        command = ['/var/www/spotifysave/venv/bin/spotdl',
-                   '--output', str(output_path),
-                   spotify_url]
-
-        process = subprocess.run(command, capture_output=True, text=True)
-
-        if output_path.is_file() and output_path.stat().st_size > 1024:
-            response = send_file(str(output_path),
-                                 mimetype='audio/mpeg',
-                                 as_attachment=True,
-                                 download_name=safe_filename)
-            output_path.unlink(missing_ok=True)
+        # Find the downloaded file
+        mp3_files = list(downloads_dir.glob('*.mp3'))
+        if mp3_files and mp3_files[0].stat().st_size > 1024:
+            response = send_file(
+                str(mp3_files[0]),
+                mimetype='audio/mpeg',
+                as_attachment=True,
+                download_name=mp3_files[0].name
+            )
+            mp3_files[0].unlink(missing_ok=True)
             return response
 
-        app.logger.error(f"Invalid file: {output_path}")
+        app.logger.error(f"No valid files found in {downloads_dir}")
         return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
