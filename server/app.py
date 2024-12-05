@@ -80,20 +80,19 @@ def download_track(title, artist, spotify_url):
 def download():
     try:
         spotify_url = request.json.get('url')
-        downloads_dir = Path('/var/www/spotifysave/downloads')
-        downloads_dir.mkdir(exist_ok=True)
 
-        command = ['/var/www/spotifysave/venv/bin/spotdl', 'download', spotify_url]
-        process = subprocess.run(command, capture_output=True, text=True, cwd=str(downloads_dir))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command = ['/var/www/spotifysave/venv/bin/spotdl', 'download', spotify_url]
+            process = subprocess.run(command, capture_output=True, text=True, cwd=temp_dir)
 
-        mp3_files = list(downloads_dir.glob('*.mp3'))
-        if mp3_files and mp3_files[0].stat().st_size > 1024:
-            response = send_file(str(mp3_files[0]),
-                                 mimetype='audio/mpeg',
-                                 as_attachment=True,
-                                 download_name=mp3_files[0].name)
-            mp3_files[0].unlink(missing_ok=True)
-            return response
+            mp3_files = list(Path(temp_dir).glob('*.mp3'))
+            if mp3_files and mp3_files[0].stat().st_size > 1024:
+                return send_file(
+                    str(mp3_files[0]),
+                    mimetype='audio/mpeg',
+                    as_attachment=True,
+                    download_name=mp3_files[0].name
+                )
 
         app.logger.error(f"Download failed: {process.stderr}")
         return jsonify({'error': 'Download failed'}), 500
