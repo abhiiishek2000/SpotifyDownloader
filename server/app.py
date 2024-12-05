@@ -80,45 +80,49 @@ def download_track(title, artist, spotify_url):
 def download():
     try:
         spotify_url = request.json.get('url')
-        base_dir = '/var/www/spotifysave'
+        temp_dir = '/var/www/spotifysave/temp'
+        os.makedirs(temp_dir, exist_ok=True)
+        os.chdir(temp_dir)
 
-        # First run spotdl to get the audio
-        subprocess.run([f'{base_dir}/venv/bin/spotdl', spotify_url],
-                       cwd=base_dir,
-                       check=True)
+        # Clear any existing files
+        for f in os.listdir(temp_dir):
+            try:
+                os.remove(os.path.join(temp_dir, f))
+            except:
+                pass
 
-        # Find downloaded audio file
-        audio_files = [f for f in os.listdir(base_dir)
-                       if os.path.isfile(os.path.join(base_dir, f)) and
-                       f.endswith(('.mp3', '.m4a', '.wav'))]
-
-        if not audio_files:
-            return jsonify({'error': 'Download failed'}), 500
-
-        input_file = os.path.join(base_dir, audio_files[0])
-        output_file = input_file.rsplit('.', 1)[0] + '_converted.mp3'
-
-        # Convert to MP3 using FFmpeg
-        subprocess.run(['ffmpeg', '-i', input_file,
-                        '-codec:a', 'libmp3lame', '-q:a', '0',
-                        output_file], check=True)
-
-        # Send converted file
-        with open(output_file, 'rb') as f:
-            data = f.read()
-
-        # Cleanup
-        os.remove(input_file)
-        os.remove(output_file)
-
-        return send_file(
-            io.BytesIO(data),
-            mimetype='audio/mpeg',
-            as_attachment=True,
-            download_name=os.path.basename(output_file)
+        # Download using spotdl
+        process = subprocess.run(
+            ['/var/www/spotifysave/venv/bin/spotdl', spotify_url],
+            capture_output=True,
+            text=True
         )
 
+        app.logger.info(f"spotdl stdout: {process.stdout}")
+        app.logger.info(f"spotdl stderr: {process.stderr}")
+
+        # Find downloaded MP3 file
+        for root, _, files in os.walk(temp_dir):
+            for file in files:
+                if file.endswith('.mp3'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'rb') as f:
+                            data = f.read()
+                        os.remove(file_path)
+                        return send_file(
+                            io.BytesIO(data),
+                            mimetype='audio/mpeg',
+                            as_attachment=True,
+                            download_name=file
+                        )
+                    except Exception as e:
+                        app.logger.error(f"File handling error: {str(e)}")
+
+        return jsonify({'error': 'No MP3 file found after download'}), 500
+
     except Exception as e:
+        app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/')
