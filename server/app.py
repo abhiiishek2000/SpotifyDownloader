@@ -51,13 +51,15 @@ def download_track(title, artist, spotify_url):
         temp_dir = tempfile.mkdtemp()
         os.chdir(temp_dir)
 
-        # Simplified command with only essential parameters
         command = [
             '/var/www/spotifysave/env/bin/spotdl',
             '--output', os.path.join(temp_dir, '{artist} - {title}.{ext}'),
             '--format', 'mp3',
             '--bitrate', '320k',
-            'download',  # Operation must come before the URL
+            '--yt-dlp-args', '"format=bestaudio/best verbose=true"',  # Add YT-DLP args
+            '--no-cache',
+            '--audio', 'youtube-music',  # Specify YouTube Music
+            'download',
             spotify_url
         ]
 
@@ -65,6 +67,29 @@ def download_track(title, artist, spotify_url):
 
         env = os.environ.copy()
         env['PATH'] = f"/var/www/spotifysave/env/bin:/usr/local/bin:/usr/bin:{env.get('PATH', '')}"
+
+        # Create a config file
+        config = {
+            "youtube_api_key": "YOUR_API_KEY",  # Optional: Add if you have one
+            "spotify_client_id": "YOUR_CLIENT_ID",  # Optional: Add if you have one
+            "spotify_client_secret": "YOUR_CLIENT_SECRET",  # Optional: Add if you have one
+            "ffmpeg": "ffmpeg",
+            "bitrate": "320k",
+            "format": "mp3",
+            "yt_dlp": {
+                "format": "bestaudio/best",
+                "quiet": False,
+                "no_warnings": True,
+                "extract_audio": True
+            }
+        }
+
+        config_path = os.path.join(temp_dir, 'config.json')
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        # Add config to command
+        command.extend(['--config', config_path])
 
         process = subprocess.run(
             command,
