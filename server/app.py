@@ -79,38 +79,31 @@ def download_track(title, artist, spotify_url):
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        title = request.json.get('title')
-        artist = request.json.get('artist')
         spotify_url = request.json.get('url')
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        process = subprocess.run(command)
 
-        download_dir = '/var/www/spotifysave/downloads'
-        safe_filename = f"{title} - {artist}".replace('/', '_')
-        output_path = os.path.join(download_dir, safe_filename + '.mp3')
+        # Get the downloaded file
+        downloaded_files = [f for f in os.listdir() if f.endswith('.mp3')]
+        if not downloaded_files:
+            return jsonify({'error': 'No file downloaded'}), 500
 
-        os.makedirs(download_dir, exist_ok=True)
-        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url, '--output', f'"{output_path}"']
+        file_path = downloaded_files[0]
+        if not os.path.isfile(file_path):
+            return jsonify({'error': 'Invalid file path'}), 500
 
-        process = subprocess.run(' '.join(command), shell=True, capture_output=True)
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        os.remove(file_path)
 
-        # Scan download dir for the file
-        downloaded_files = [f for f in os.listdir(download_dir) if f.endswith('.mp3')]
-        if downloaded_files:
-            file_path = os.path.join(download_dir, downloaded_files[0])
-            with open(file_path, 'rb') as f:
-                data = f.read()
-            os.remove(file_path)
-            return send_file(
-                io.BytesIO(data),
-                mimetype='audio/mpeg',
-                as_attachment=True,
-                download_name=f"{title} - {artist}.mp3"
-            )
-
-        app.logger.error(f"spotdl error: {process.stderr.decode()}")
-        return jsonify({'error': 'Download failed'}), 500
+        return send_file(
+            io.BytesIO(data),
+            mimetype='audio/mpeg',
+            as_attachment=True,
+            download_name=file_path
+        )
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/')
