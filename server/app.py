@@ -11,6 +11,8 @@ import tempfile
 import subprocess
 import json
 import io
+import logging
+from logging.handlers import RotatingFileHandler
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -23,6 +25,15 @@ app = Flask(__name__,
 @app.route('/images/<path:filename>')
 def serve_image(filename):
     return send_from_directory('../public/images', filename)
+
+
+# Set up file logging
+log_file = '/var/www/spotifysave/app.log'
+file_handler = RotatingFileHandler(log_file, maxBytes=10240, backupCount=5)
+file_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+app.logger.addHandler(file_handler)
 
 
 def get_track_info(url):
@@ -53,48 +64,38 @@ def download_track(title, artist, spotify_url):
         spotdl_path = '/var/www/spotifysave/venv/bin/spotdl'
         temp_dir = tempfile.mkdtemp()
 
-        app.logger.info(f"Starting download for {spotify_url} to {temp_dir}")
-
         command = [
             spotdl_path,
             spotify_url,
-            '--output', temp_dir
+            '--output', temp_dir,
+            '--format', 'mp3',
+            '--verbose'
         ]
 
-        app.logger.info(f"Running command: {' '.join(command)}")
+        app.logger.debug(f"Command: {' '.join(command)}")
+        app.logger.debug(f"Temp dir: {temp_dir}")
 
         process = subprocess.run(
             command,
             capture_output=True,
             text=True,
             env={
-                'PATH': '/var/www/spotifysave/venv/bin:/usr/local/bin:/usr/bin:/bin',
+                'PATH': '/var/www/spotifysave/venv/bin:/usr/bin:/bin',
                 'VIRTUAL_ENV': '/var/www/spotifysave/venv',
-                'HOME': '/var/www/spotifysave'  # Add HOME env var
-            },
-            timeout=300
+                'HOME': '/var/www/spotifysave'
+            }
         )
 
-        app.logger.info(f"Process stdout: {process.stdout}")
-        app.logger.info(f"Process stderr: {process.stderr}")
-        app.logger.info(f"Return code: {process.returncode}")
+        app.logger.debug(f"Output: {process.stdout}")
+        app.logger.debug(f"Error: {process.stderr}")
+        app.logger.debug(f"Return code: {process.returncode}")
 
-        if process.returncode != 0:
-            app.logger.error(f"spotdl failed: {process.stderr}")
-            return None
-
-        mp3_files = [f for f in os.listdir(temp_dir) if f.endswith('.mp3')]
-        app.logger.info(f"Found MP3 files: {mp3_files}")
-
-        if mp3_files:
-            return os.path.join(temp_dir, mp3_files[0])
-
-        app.logger.error("No MP3 files found after download")
-        return None
+        return temp_dir if process.returncode == 0 else None
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}", exc_info=True)
+        app.logger.exception("Download failed")
         return None
+
 
 @app.route('/download', methods=['POST'])
 def download():
