@@ -65,40 +65,35 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        safe_filename = f"{title} - {artist}".replace('/', '_').replace('\\', '_')
-        output_template = os.path.join(os.getcwd(), 'downloads', '%(title)s.%(ext)s')
-
-        os.makedirs('downloads', exist_ok=True)
+        download_dir = os.path.join(os.getcwd(), 'downloads')
+        os.makedirs(download_dir, exist_ok=True)
 
         command = ['/var/www/spotifysave/venv/bin/spotdl',
-                   '--output', 'downloads/{title}.{ext}',
                    spotify_url]
 
+        os.chdir(download_dir)
         process = subprocess.run(command, capture_output=True, text=True)
 
         if process.returncode != 0:
-            app.logger.error(f"spotdl error: {process.stderr}")
             return jsonify({'error': 'Download failed'}), 500
 
-        downloaded_file = next(Path('downloads').glob('*.mp3'), None)
-        if not downloaded_file:
+        downloaded_files = [f for f in os.listdir() if f.endswith('.mp3')]
+        if not downloaded_files:
             return jsonify({'error': 'No file found'}), 500
 
-        try:
-            with open(downloaded_file, 'rb') as file:
-                file_data = file.read()
-            return send_file(
-                io.BytesIO(file_data),
-                mimetype='audio/mpeg',
-                as_attachment=True,
-                download_name=f"{safe_filename}.mp3"
-            )
-        finally:
-            downloaded_file.unlink(missing_ok=True)
-            try:
-                os.rmdir('downloads')
-            except OSError:
-                pass
+        file_path = downloaded_files[0]
+        with open(file_path, 'rb') as file:
+            file_data = file.read()
+
+        os.remove(file_path)
+        os.chdir('..')
+
+        return send_file(
+            io.BytesIO(file_data),
+            mimetype='audio/mpeg',
+            as_attachment=True,
+            download_name=f"{title} - {artist}.mp3"
+        )
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
