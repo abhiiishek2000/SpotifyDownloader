@@ -85,52 +85,74 @@ def download_track(title, artist, spotify_url):
 
 def search_youtube_music(query):
     try:
-        # Encode query for URL
         encoded_query = urllib.parse.quote(query)
-
-        # Make request to YouTube Music search
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         }
-        search_url = f"https://music.youtube.com/search?q={encoded_query}"
-        response = requests.get(search_url, headers=headers)
 
-        # Extract video ID from first result using regex
-        video_id_match = re.search(r'videoId":"([^"]+)"', response.text)
-        if video_id_match:
-            return video_id_match.group(1)
-        return None
+        # First get YouTube Music's initial data
+        response = requests.get(
+            f"https://music.youtube.com/search?q={encoded_query}",
+            headers=headers
+        )
+
+        # Look for video ID in ytInitialData
+        initial_data_match = re.search(r'ytInitialData\s*=\s*({.+?});', response.text)
+        if initial_data_match:
+            data = initial_data_match.group(1)
+            # Look for video ID in the data
+            video_match = re.search(r'"videoId":"([^"]{11})"', data)
+            if video_match:
+                return video_match.group(1)
+
+        # Fallback: direct search on YouTube
+        yt_response = requests.get(
+            f"https://www.youtube.com/results?search_query={encoded_query}",
+            headers=headers
+        )
+        video_id = re.search(r'watch\?v=([^"]{11})', yt_response.text)
+        return video_id.group(1) if video_id else None
+
     except Exception as e:
-        print(f"Search error: {str(e)}")
+        app.logger.error(f"Search error: {str(e)}")
         return None
 
 
 def download_audio(video_id, output_path):
     try:
-        # Get video info
-        video_url = f"https://www.youtube.com/watch?v={video_id}"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept-Language': 'en-US,en;q=0.9'
         }
-        response = requests.get(video_url, headers=headers)
 
-        # Extract audio stream URL using regex
-        audio_url_match = re.search(r'"url":"([^"]+audioonly[^"]+)"', response.text)
-        if not audio_url_match:
-            return False
+        # Get video page
+        response = requests.get(
+            f"https://www.youtube.com/watch?v={video_id}",
+            headers=headers
+        )
 
-        audio_url = audio_url_match.group(1).replace('\\u0026', '&')
+        # Find audio URL in adaptive formats
+        formats_match = re.search(r'"adaptiveFormats":(\[.+?\])', response.text)
+        if formats_match:
+            formats = json.loads(formats_match.group(1))
+            audio_format = next((f for f in formats if 'audio' in f.get('mimeType', '')), None)
 
-        # Download audio file
-        audio_response = requests.get(audio_url, headers=headers)
-        if audio_response.status_code == 200:
-            with open(output_path, 'wb') as f:
-                f.write(audio_response.content)
-            return True
+            if audio_format and 'url' in audio_format:
+                audio_url = audio_format['url']
+                audio_response = requests.get(audio_url, headers=headers, stream=True)
+
+                if audio_response.status_code == 200:
+                    with open(output_path, 'wb') as f:
+                        for chunk in audio_response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    return True
 
         return False
+
     except Exception as e:
-        print(f"Download error: {str(e)}")
+        app.logger.error(f"Download error: {str(e)}")
         return False
 
 
