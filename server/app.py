@@ -83,27 +83,19 @@ def download():
         artist = request.json.get('artist')
         spotify_url = request.json.get('url')
 
-        # Create valid filename
-        filename = f"{title} - {artist}.mp3".replace('/', '_')
-        output_dir = '/var/www/spotifysave/downloads'
-        output_path = os.path.join(output_dir, filename)
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        process = subprocess.run(command, capture_output=True)
 
-        os.makedirs(output_dir, exist_ok=True)
-        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url, '--output', output_path]
-
-        subprocess.run(command, capture_output=True)
-
-        if os.path.exists(output_path):
-            with open(output_path, 'rb') as f:
-                data = f.read()
-            os.remove(output_path)  # Clean up
+        if process.returncode == 0:
+            filename = f"{title} - {artist}.mp3"
             return send_file(
-                io.BytesIO(data),
+                io.BytesIO(process.stdout),
                 mimetype='audio/mpeg',
                 as_attachment=True,
                 download_name=filename
             )
 
+        app.logger.error(f"spotdl error: {process.stderr.decode()}")
         return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
