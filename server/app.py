@@ -83,11 +83,12 @@ def download():
         artist = request.json.get('artist')
         spotify_url = request.json.get('url')
 
-        # VPS-specific path for downloads
         downloads_dir = Path('/var/www/spotifysave/downloads')
         downloads_dir.mkdir(exist_ok=True)
 
-        output_path = downloads_dir / f"{title} - {artist}.mp3"
+        # Sanitize filename to remove problematic characters
+        safe_filename = re.sub(r'[^\w\-_\. ]', '_', f"{title} - {artist}") + '.mp3'
+        output_path = downloads_dir / safe_filename
 
         command = ['/var/www/spotifysave/venv/bin/spotdl',
                    '--output', str(output_path),
@@ -102,18 +103,17 @@ def download():
             app.logger.error(f"spotdl error: {process.stderr}")
             return jsonify({'error': 'Download failed'}), 500
 
-        if output_path.exists() and output_path.stat().st_size > 1024:
+        if output_path.is_file() and output_path.stat().st_size > 1024:
             response = send_file(
                 str(output_path),
                 mimetype='audio/mpeg',
                 as_attachment=True,
-                download_name=f"{title} - {artist}.mp3"
+                download_name=safe_filename
             )
-            # Cleanup after sending
             output_path.unlink(missing_ok=True)
             return response
         else:
-            app.logger.error("File not created or too small")
+            app.logger.error(f"Invalid file: {output_path}")
             return jsonify({'error': 'Invalid file'}), 500
 
     except Exception as e:
