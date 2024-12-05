@@ -83,77 +83,82 @@ def download_track(title, artist, spotify_url):
         return None
 
 
-def search_youtube_music(query):
-    try:
-        encoded_query = urllib.parse.quote(query)
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        }
-
-        # First get YouTube Music's initial data
-        response = requests.get(
-            f"https://music.youtube.com/search?q={encoded_query}",
-            headers=headers
-        )
-
-        # Look for video ID in ytInitialData
-        initial_data_match = re.search(r'ytInitialData\s*=\s*({.+?});', response.text)
-        if initial_data_match:
-            data = initial_data_match.group(1)
-            # Look for video ID in the data
-            video_match = re.search(r'"videoId":"([^"]{11})"', data)
-            if video_match:
-                return video_match.group(1)
-
-        # Fallback: direct search on YouTube
-        yt_response = requests.get(
-            f"https://www.youtube.com/results?search_query={encoded_query}",
-            headers=headers
-        )
-        video_id = re.search(r'watch\?v=([^"]{11})', yt_response.text)
-        return video_id.group(1) if video_id else None
-
-    except Exception as e:
-        app.logger.error(f"Search error: {str(e)}")
-        return None
-
-
 def download_audio(video_id, output_path):
     try:
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept-Language': 'en-US,en;q=0.9'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
 
-        # Get video page
-        response = requests.get(
-            f"https://www.youtube.com/watch?v={video_id}",
-            headers=headers
-        )
+        # Get video info
+        info_url = f"https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+        data = {
+            "videoId": video_id,
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": "16.20"
+                }
+            }
+        }
 
-        # Find audio URL in adaptive formats
-        formats_match = re.search(r'"adaptiveFormats":(\[.+?\])', response.text)
-        if formats_match:
-            formats = json.loads(formats_match.group(1))
-            audio_format = next((f for f in formats if 'audio' in f.get('mimeType', '')), None)
+        response = requests.post(info_url, json=data, headers=headers)
+        if response.status_code != 200:
+            return False
 
-            if audio_format and 'url' in audio_format:
-                audio_url = audio_format['url']
-                audio_response = requests.get(audio_url, headers=headers, stream=True)
+        video_data = response.json()
+        formats = video_data.get('streamingData', {}).get('adaptiveFormats', [])
+        audio_url = next((f['url'] for f in formats if f.get('mimeType', '').startswith('audio/')), None)
 
-                if audio_response.status_code == 200:
-                    with open(output_path, 'wb') as f:
-                        for chunk in audio_response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                    return True
+        if audio_url:
+            audio_response = requests.get(audio_url, headers=headers, stream=True)
+            if audio_response.status_code == 200:
+                with open(output_path, 'wb') as f:
+                    for chunk in audio_response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                return True
 
         return False
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return False
+
+
+def search_youtube_music(query):
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+
+        search_url = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+        data = {
+            "query": query,
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": "16.20"
+                }
+            }
+        }
+
+        response = requests.post(search_url, json=data, headers=headers)
+        if response.status_code != 200:
+            return None
+
+        search_data = response.json()
+        items = search_data.get('contents', {}).get('sectionListRenderer', {}).get('contents', [])
+
+        for item in items:
+            video_id = item.get('itemSectionRenderer', {}).get('contents', [])[0].get('videoRenderer', {}).get(
+                'videoId')
+            if video_id:
+                return video_id
+
+        return None
+
+    except Exception as e:
+        app.logger.error(f"Search error: {str(e)}")
+        return None
 
 
 @app.route('/download', methods=['POST'])
