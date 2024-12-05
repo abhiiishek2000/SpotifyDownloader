@@ -79,49 +79,28 @@ def download_track(title, artist, spotify_url):
 @app.route('/download', methods=['POST'])
 def download():
     try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
         spotify_url = request.json.get('url')
-        work_dir = '/var/www/spotifysave/temp'
-        os.makedirs(work_dir, exist_ok=True)
-        os.chdir(work_dir)
 
-        # Run spotdl with output to log file
-        with open('download.log', 'w') as log:
-            process = subprocess.run(
-                ['/var/www/spotifysave/venv/bin/spotdl', '--format', 'mp3', spotify_url],
-                stdout=log,
-                stderr=log
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        process = subprocess.run(command, capture_output=True)
+
+        if process.returncode == 0:
+            filename = f"{title} - {artist}.mp3"
+            return send_file(
+                io.BytesIO(process.stdout),
+                mimetype='audio/mpeg',
+                as_attachment=True,
+                download_name=filename
             )
 
-        # Read log
-        with open('download.log', 'r') as log:
-            app.logger.info(f"Download log: {log.read()}")
-
-        # List directory contents
-        app.logger.info(f"Directory contents: {os.listdir(work_dir)}")
-
-        # Find MP3 and send
-        for file in os.listdir(work_dir):
-            if file.endswith('.mp3'):
-                try:
-                    with open(file, 'rb') as f:
-                        data = f.read()
-                    os.remove(file)
-                    os.remove('download.log')
-                    return send_file(
-                        io.BytesIO(data),
-                        mimetype='audio/mpeg',
-                        as_attachment=True,
-                        download_name=file
-                    )
-                except Exception as e:
-                    app.logger.error(f"File error: {str(e)}")
-
-        raise Exception("No MP3 file found")
+        app.logger.error(f"spotdl error: {process.stderr.decode()}")
+        return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
-        app.logger.error(f"Failed: {str(e)}")
+        app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
