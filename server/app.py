@@ -11,6 +11,7 @@ import tempfile
 import subprocess
 import json
 import io
+import logging
 from logging.handlers import RotatingFileHandler
 
 logging.basicConfig(level=logging.DEBUG)
@@ -58,48 +59,48 @@ def get_track_info(url):
         return None
 
 
+def download_track(title, artist, spotify_url):
+    try:
+        output_path = f"{title} - {artist}.mp3"
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url, '--output', output_path]
+
+        app.logger.debug(f"Command: {' '.join(command)}")
+        process = subprocess.run(command, capture_output=True, text=True)
+
+        if os.path.exists(output_path):
+            return output_path
+        return None
+
+    except Exception as e:
+        app.logger.exception("Download failed")
+        return None
+
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        spotify_url = request.json.get('url')
         title = request.json.get('title')
         artist = request.json.get('artist')
+        spotify_url = request.json.get('url')
 
-        download_dir = os.path.join(os.getcwd(), 'downloads')
-        os.makedirs(download_dir, exist_ok=True)
+        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        process = subprocess.run(command, capture_output=True)
 
-        command = ['/var/www/spotifysave/venv/bin/spotdl',
-                   spotify_url]
+        if process.returncode == 0:
+            filename = f"{title} - {artist}.mp3"
+            return send_file(
+                io.BytesIO(process.stdout),
+                mimetype='audio/mpeg',
+                as_attachment=True,
+                download_name=filename
+            )
 
-        os.chdir(download_dir)
-        process = subprocess.run(command, capture_output=True, text=True)
-
-        if process.returncode != 0:
-            return jsonify({'error': 'Download failed'}), 500
-
-        downloaded_files = [f for f in os.listdir() if f.endswith('.mp3')]
-        if not downloaded_files:
-            return jsonify({'error': 'No file found'}), 500
-
-        file_path = downloaded_files[0]
-        with open(file_path, 'rb') as file:
-            file_data = file.read()
-
-        os.remove(file_path)
-        os.chdir('..')
-
-        return send_file(
-            io.BytesIO(file_data),
-            mimetype='audio/mpeg',
-            as_attachment=True,
-            download_name=f"{title} - {artist}.mp3"
-        )
+        app.logger.error(f"spotdl error: {process.stderr.decode()}")
+        return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
-
 @app.route('/')
 def index():
     return render_template('index.html')
