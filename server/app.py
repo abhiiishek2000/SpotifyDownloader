@@ -85,11 +85,14 @@ def download():
             command = [
                 '/var/www/spotifysave/venv/bin/spotdl',
                 'download',
-                '--output', f'{temp_dir}/%(title)s.%(ext)s',
                 spotify_url
             ]
 
-            process = subprocess.run(command, capture_output=True, text=True)
+            process = subprocess.run(command,
+                                     capture_output=True,
+                                     text=True,
+                                     cwd=temp_dir)
+
             app.logger.debug(f"Download output: {process.stdout}")
             app.logger.debug(f"Download error: {process.stderr}")
 
