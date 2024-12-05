@@ -66,14 +66,13 @@ def download_track(title, artist, spotify_url):
 
         command = [
             spotdl_path,
-            spotify_url,
+            'download',  # Add download command
             '--output', temp_dir,
             '--format', 'mp3',
-            '--verbose'
+            spotify_url
         ]
 
         app.logger.debug(f"Command: {' '.join(command)}")
-        app.logger.debug(f"Temp dir: {temp_dir}")
 
         process = subprocess.run(
             command,
@@ -88,14 +87,16 @@ def download_track(title, artist, spotify_url):
 
         app.logger.debug(f"Output: {process.stdout}")
         app.logger.debug(f"Error: {process.stderr}")
-        app.logger.debug(f"Return code: {process.returncode}")
 
-        return temp_dir if process.returncode == 0 else None
+        mp3_files = [f for f in os.listdir(temp_dir) if f.endswith('.mp3')]
+        if mp3_files:
+            return os.path.join(temp_dir, mp3_files[0])
+
+        return None
 
     except Exception as e:
         app.logger.exception("Download failed")
         return None
-
 
 @app.route('/download', methods=['POST'])
 def download():
