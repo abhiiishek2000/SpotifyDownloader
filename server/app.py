@@ -80,21 +80,25 @@ def download_track(title, artist, spotify_url):
 def download():
     try:
         spotify_url = request.json.get('url')
-        command = ['/var/www/spotifysave/venv/bin/spotdl', spotify_url]
+        base_dir = '/var/www/spotifysave'
 
-        process = subprocess.run(command,
-                                 capture_output=True,
-                                 cwd='/var/www/spotifysave/downloads')
+        # Run spotdl directly in the base directory
+        process = subprocess.run([
+            f'{base_dir}/venv/bin/spotdl',
+            '--format', 'mp3',
+            spotify_url
+        ], cwd=base_dir)
 
-        mp3_files = [f for f in os.listdir('/var/www/spotifysave/downloads')
-                     if f.endswith('.mp3')]
+        # Find the downloaded MP3 file
+        mp3_files = [f for f in os.listdir(base_dir) if
+                     f.endswith('.mp3') and os.path.isfile(os.path.join(base_dir, f))]
 
         if mp3_files:
-            file_path = f'/var/www/spotifysave/downloads/{mp3_files[0]}'
+            # Send first MP3 file found
+            file_path = os.path.join(base_dir, mp3_files[0])
             with open(file_path, 'rb') as f:
                 data = f.read()
-            os.remove(file_path)
-
+            os.remove(file_path)  # Clean up
             return send_file(
                 io.BytesIO(data),
                 mimetype='audio/mpeg',
