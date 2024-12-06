@@ -129,6 +129,61 @@ def download_track(title, artist, spotify_url):
 @app.route('/download', methods=['POST'])
 def download():
     try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
+                'cookiefile': '/var/www/spotifysave/cookies.txt',
+                'default_search': 'ytmusic',
+                'socket_timeout': 30,
+                'nocheckcertificate': True,
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'concurrent_fragment_downloads': 1,
+                'ffmpeg_location': '/usr/bin/ffmpeg',
+                'verbose': False,
+                'extract_audio': True,
+                'audio_format': 'mp3',
+                'audio_quality': '192K',
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            }
+            
+            search_term = f"ytsearch1:{title} {artist} official audio"
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    app.logger.debug(f"Searching for: {search_term}")
+                    ydl.download([search_term])
+                    
+                    mp3_files = list(Path(temp_dir).glob('*.mp3'))
+                    if mp3_files:
+                        return send_file(
+                            str(mp3_files[0]),
+                            mimetype='audio/mpeg',
+                            as_attachment=True,
+                            download_name=f"{title} - {artist}.mp3"
+                        )
+                except Exception as e:
+                    app.logger.error(f"Download error: {str(e)}")
+                    return jsonify({'error': str(e)}), 500
+                
+            return jsonify({'error': 'No files found'}), 404
+
+    except Exception as e:
+        app.logger.error(f"Request error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    try:
         spotify_url = request.json.get('url')
         title = request.json.get('title')
         artist = request.json.get('artist')
