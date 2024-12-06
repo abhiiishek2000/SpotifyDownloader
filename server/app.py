@@ -71,7 +71,9 @@ def download():
                     'Accept': '*/*',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Referer': 'https://music.youtube.com/'
-                }
+                },
+                'username': 'ak663904@gmail.com',  # Add your YouTube username
+                'password': 'Abhishek#1436',  # Add your YouTube password
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
