@@ -142,6 +142,68 @@ def download():
                 }],
                 'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
                 'cookiefile': '/var/www/spotifysave/cookies.txt',
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'ffmpeg_location': '/usr/bin/ffmpeg',  # Verified path
+                'proxy': 'socks5://127.0.0.1:9050',    # Tor is running
+                'source_address': '0.0.0.0',
+                'sleep_interval': 1,
+                'max_sleep_interval': 5,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-us,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive'
+                },
+                'nocheckcertificate': True,
+                'ignoreerrors': False
+            }
+            
+            search_terms = [
+                f"ytsearch1:{title} {artist} audio",
+                f"ytsearch1:{title} {artist} official",
+                f"ytsearch1:{title} by {artist}"
+            ]
+            
+            for search_term in search_terms:
+                try:
+                    app.logger.debug(f"Trying search term: {search_term}")
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([search_term])
+                        
+                        mp3_files = list(Path(temp_dir).glob('*.mp3'))
+                        if mp3_files:
+                            return send_file(
+                                str(mp3_files[0]),
+                                mimetype='audio/mpeg',
+                                as_attachment=True,
+                                download_name=f"{title} - {artist}.mp3"
+                            )
+                except Exception as e:
+                    app.logger.error(f"Error with search term '{search_term}': {str(e)}")
+                    continue
+            
+            return jsonify({'error': 'Could not download from any source'}), 500
+
+    except Exception as e:
+        app.logger.error(f"Request error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
+                'cookiefile': '/var/www/spotifysave/cookies.txt',
                 'default_search': 'ytmusic',
                 'socket_timeout': 30,
                 'nocheckcertificate': True,
