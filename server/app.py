@@ -15,11 +15,8 @@ app = Flask(__name__,
 
 
 def get_track_info(url):
-    """Fetch metadata for a track from the given URL."""
     try:
-        response = requests.get(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        })
+        response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
 
         title = soup.find('meta', property='og:title')['content']
@@ -42,14 +39,13 @@ def get_track_info(url):
 
 @app.route('/download', methods=['POST'])
 def download():
-    """Handle downloading and converting a track to MP3."""
     try:
         spotify_url = request.json.get('url')
-        if not spotify_url:
-            return jsonify({'error': 'No URL provided'}), 400
+        title = request.json.get('title')
+        artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Initialize Spotdl with configuration
+            # Initialize Spotdl with updated settings
             spotdl = Spotdl(
                 client_id='41c1c1a4546c413498d522b0f0508670',
                 client_secret='c36781c6845448d3b97a1d30403d8bbe',
@@ -62,6 +58,7 @@ def download():
                     'audio_providers': ['youtube-music', 'youtube'],
                     'filter_results': True,
                     'yt_dlp_args': '--force-ipv4',
+                    'headless': True,
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -71,39 +68,46 @@ def download():
                 }
             )
 
-            app.logger.debug(f"Searching for track: {spotify_url}")
+            # Log and search for songs
+            app.logger.debug(f"Searching for: {spotify_url}")
             songs = spotdl.search([spotify_url])
 
             if not songs:
                 return jsonify({'error': 'Song not found'}), 404
 
-            app.logger.debug(f"Found song: {songs[0].title}")
+            app.logger.debug(f"Found {len(songs)} songs")
             song, file_path = spotdl.download(songs[0])
 
             if file_path and file_path.exists():
-                return send_file(
-                    file_path,
-                    as_attachment=True,
-                    download_name=f"{songs[0].artist} - {songs[0].title}.mp3",
+                def generate():
+                    with open(file_path, 'rb') as f:
+                        while True:
+                            chunk = f.read(8192)
+                            if not chunk:
+                                break
+                            yield chunk
+
+                response = Response(
+                    generate(),
                     mimetype='audio/mpeg'
                 )
+                response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
+                return response
 
-            return jsonify({'error': 'Download or conversion failed'}), 500
+            return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
-        app.logger.error(f"Error during download: {str(e)}")
+        app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/')
 def index():
-    """Render the homepage."""
     return render_template('index.html')
 
 
 @app.route('/track-info', methods=['POST'])
 def get_info():
-    """Fetch and return track metadata."""
     url = request.json.get('url')
     if not url:
         return jsonify({'error': 'No URL provided'}), 400
@@ -116,13 +120,11 @@ def get_info():
 
 @app.route('/privacy')
 def privacy():
-    """Render the privacy policy page."""
     return render_template('privacy.html')
 
 
 @app.route('/terms')
 def terms():
-    """Render the terms and conditions page."""
     return render_template('terms.html')
 
 
