@@ -1,12 +1,11 @@
+# app.py
 import tempfile
-from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, send_file, Response
 import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta
 import logging
-from ytmusicapi import YTMusic
-from youtube_music_downloader import CustomMusicDownloader
+from spotdl import Spotdl
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -14,9 +13,6 @@ app = Flask(__name__,
             static_folder='../src',
             static_url_path='',
             template_folder='../src')
-
-API_KEY = 'AIzaSyCSrmcJ3mBG2Z7kYH0GjMH5Kpxunq-bLj0'
-
 
 def get_track_info(url):
     try:
@@ -40,31 +36,44 @@ def get_track_info(url):
         app.logger.error(f"Error getting track info: {str(e)}")
         return None
 
-
 @app.route('/download', methods=['POST'])
 def download():
     try:
+        spotify_url = request.json.get('url')
         title = request.json.get('title')
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            ytmusic = YTMusic()
-            search_results = ytmusic.search(f"{title} {artist}", filter="songs", limit=1)
+            # Initialize Spotdl with updated settings
+            spotdl = Spotdl(
+                client_id='41c1c1a4546c413498d522b0f0508670',
+                client_secret='c36781c6845448d3b97a1d30403d8bbe',
+                downloader_settings={
+                    'output': f'{temp_dir}/%(artist)s - %(title)s.%(ext)s',
+                    'format': 'mp3',
+                    'ffmpeg': '/usr/bin/ffmpeg',
+                    'threads': 1,
+                    'audio_providers': ['youtube-music', 'youtube'],
+                    'filter_results': True,
+                    'yt_dlp_args': '--no-check-certificate --force-ipv4 --geo-bypass --add-header "User-Agent: Mozilla/5.0"',
+                    'overwrite': 'force',
+                    'log_level': 'DEBUG',
+                    'simple_tui': True
+                }
+            )
 
-            if not search_results:
+            app.logger.debug(f"Searching for: {spotify_url}")
+            songs = spotdl.search([spotify_url])
+
+            if not songs:
                 return jsonify({'error': 'Song not found'}), 404
 
-            video_id = search_results[0]['videoId']
+            app.logger.debug(f"Found {len(songs)} songs")
+            song, file_path = spotdl.download(songs[0])
 
-            # Download using custom downloader
-            downloader = CustomMusicDownloader(API_KEY)
-            try:
-                stream_url = downloader.get_stream_url(video_id)
-                output_path = Path(temp_dir) / f"{title} - {artist}"
-                mp3_file = downloader.download_audio(stream_url, output_path)
-
+            if file_path and file_path.exists():
                 def generate():
-                    with open(mp3_file, 'rb') as f:
+                    with open(file_path, 'rb') as f:
                         while True:
                             chunk = f.read(8192)
                             if not chunk:
@@ -75,19 +84,15 @@ def download():
                 response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
                 return response
 
-            except Exception as e:
-                app.logger.error(f"Download error: {str(e)}")
-                return jsonify({'error': 'Failed to download audio'}), 500
+            return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/track-info', methods=['POST'])
 def get_info():
@@ -100,16 +105,13 @@ def get_info():
         return jsonify(track_info)
     return jsonify({'error': 'Could not fetch track info'}), 500
 
-
 @app.route('/privacy')
 def privacy():
     return render_template('privacy.html')
 
-
 @app.route('/terms')
 def terms():
     return render_template('terms.html')
-
 
 if __name__ == '__main__':
     app.run(debug=True)
