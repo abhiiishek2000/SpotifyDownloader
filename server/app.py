@@ -78,22 +78,20 @@ def download_track(title, artist, spotify_url):
         return None
 
 
-
-with open('/var/www/spotifysave/config.json') as f:
-    config = json.load(f)
-
 @app.route('/download', methods=['POST'])
 def download():
     try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
         spotify_url = request.json.get('url')
 
         with tempfile.TemporaryDirectory() as temp_dir:
             spotdl = Spotdl(
-                client_id=config['client_id'],
-                client_secret=config['client_secret'],
+                client_id='41c1c1a4546c413498d522b0f0508670',
+                client_secret='c36781c6845448d3b97a1d30403d8bbe',
                 downloader_settings={
-                    'cookie_file': config['cookie_file'],
-                    'output': temp_dir + '/%(title)s.%(ext)s'
+                    'output': f'{temp_dir}/%(title)s.%(ext)s',
+                    'format': 'mp3',
                 }
             )
 
@@ -104,18 +102,21 @@ def download():
             song, file_path = spotdl.download(songs[0])
 
             if file_path and file_path.exists():
-                return send_file(
+                response = send_file(
                     str(file_path),
                     mimetype='audio/mpeg',
                     as_attachment=True,
-                    download_name=file_path.name
+                    download_name=f"{title} - {artist}.mp3"
                 )
+                response.headers["Content-Disposition"] = f'attachment; filename="{title} - {artist}.mp3"'
+                return response
 
             return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
