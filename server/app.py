@@ -1,9 +1,8 @@
 import tempfile
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, send_file, Response
 import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta
-import io
 import logging
 from spotdl import Spotdl
 
@@ -13,6 +12,7 @@ app = Flask(__name__,
             static_folder='../src',
             static_url_path='',
             template_folder='../src')
+
 
 def get_track_info(url):
     try:
@@ -36,14 +36,16 @@ def get_track_info(url):
         app.logger.error(f"Error getting track info: {str(e)}")
         return None
 
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
         spotify_url = request.json.get('url')
         title = request.json.get('title')
         artist = request.json.get('artist')
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Initialize Spotdl with updated settings
             spotdl = Spotdl(
                 client_id='41c1c1a4546c413498d522b0f0508670',
                 client_secret='c36781c6845448d3b97a1d30403d8bbe',
@@ -55,10 +57,8 @@ def download():
                     'threads': 1,
                     'audio_providers': ['youtube-music', 'youtube'],
                     'filter_results': True,
-                    'yt_dlp_args': '--no-check-certificates --force-ipv4',
+                    'yt_dlp_args': '--force-ipv4',
                     'headless': True,
-                    'no_cache': True,
-                    'overwrite': 'force',
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -67,55 +67,17 @@ def download():
                     }
                 }
             )
-            
+
+            # Log and search for songs
             app.logger.debug(f"Searching for: {spotify_url}")
             songs = spotdl.search([spotify_url])
-            
+
             if not songs:
                 return jsonify({'error': 'Song not found'}), 404
-                
+
             app.logger.debug(f"Found {len(songs)} songs")
             song, file_path = spotdl.download(songs[0])
-            
-            if file_path and file_path.exists():
-                return send_file(
-                    str(file_path),
-                    mimetype='audio/mpeg',
-                    as_attachment=True,
-                    download_name=f"{title} - {artist}.mp3"
-                )
-            
-            return jsonify({'error': 'Download failed'}), 500
-            
-    except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-    try:
-        spotify_url = request.json.get('url')
-        title = request.json.get('title')
-        artist = request.json.get('artist')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            spotdl = Spotdl(
-                client_id='41c1c1a4546c413498d522b0f0508670',
-                client_secret='c36781c6845448d3b97a1d30403d8bbe',
-                downloader_settings={
-                    'output': f'{temp_dir}/%(artist)s - %(title)s.%(ext)s',
-                    'format': 'mp3',
-                    'ffmpeg': '/usr/bin/ffmpeg',
-                    'cookie_file': '/var/www/spotifysave/cookies.txt',
-                    'threads': 1,
-                    'audio_providers': ['youtube-music'],
-                    'filter_results': True
-                }
-            )
-            
-            songs = spotdl.search([spotify_url])
-            if not songs:
-                return jsonify({'error': 'Song not found'}), 404
-
-            song, file_path = spotdl.download(songs[0])
-            
             if file_path and file_path.exists():
                 def generate():
                     with open(file_path, 'rb') as f:
@@ -131,16 +93,18 @@ def download():
                 )
                 response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
                 return response
-            
+
             return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/track-info', methods=['POST'])
 def get_info():
@@ -153,13 +117,16 @@ def get_info():
         return jsonify(track_info)
     return jsonify({'error': 'Could not fetch track info'}), 500
 
+
 @app.route('/privacy')
 def privacy():
     return render_template('privacy.html')
 
+
 @app.route('/terms')
 def terms():
     return render_template('terms.html')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
