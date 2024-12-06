@@ -54,14 +54,11 @@ def download():
                     'threads': 1,
                     'audio_providers': ['youtube'],
                     'filter_results': True,
-                    'yt_dlp_args': '--force-ipv4 --no-check-certificate --add-header "Accept:*/*"',
+                    'yt_dlp_args': '--no-check-certificate',
                     'quiet': True,
-                    'headless': True,
                     'overwrite': 'force',
-                    'log_level': 'DEBUG'
                 }
             )
-
             app.logger.debug(f"Searching for: {spotify_url}")
             songs = spotdl.search([spotify_url])
 
