@@ -85,6 +85,8 @@ def download():
         artist = request.json.get('artist')
         spotify_url = request.json.get('url')
 
+        cookie_file = '/var/www/spotifysave/cookies.txt'
+
         with tempfile.TemporaryDirectory() as temp_dir:
             spotdl = Spotdl(
                 client_id='41c1c1a4546c413498d522b0f0508670',
@@ -92,6 +94,9 @@ def download():
                 downloader_settings={
                     'output': f'{temp_dir}/%(title)s.%(ext)s',
                     'format': 'mp3',
+                    'cookie_file': cookie_file,
+                    'yt_dlp_args': f'--cookies {cookie_file}',
+                    'audio_providers': ['youtube-music']
                 }
             )
 
@@ -108,7 +113,6 @@ def download():
                     as_attachment=True,
                     download_name=f"{title} - {artist}.mp3"
                 )
-                response.headers["Content-Disposition"] = f'attachment; filename="{title} - {artist}.mp3"'
                 return response
 
             return jsonify({'error': 'Download failed'}), 500
