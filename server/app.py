@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 import logging
 from ytmusicapi import YTMusic
-import yt_dlp
+from youtube_music_downloader import CustomMusicDownloader
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -14,6 +14,8 @@ app = Flask(__name__,
             static_folder='../src',
             static_url_path='',
             template_folder='../src')
+
+API_KEY = 'AIzaSyCSrmcJ3mBG2Z7kYH0GjMH5Kpxunq-bLj0'
 
 
 def get_track_info(url):
@@ -46,51 +48,23 @@ def download():
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            from ytmusicapi import YTMusic
-
-            # Initialize YTMusic with headers
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Content-Type': 'application/json',
-                'X-Goog-AuthUser': '0',
-                'x-origin': 'https://music.youtube.com'
-            }
-
-            ytmusic = YTMusic(headers_raw=headers)
+            ytmusic = YTMusic()
             search_results = ytmusic.search(f"{title} {artist}", filter="songs", limit=1)
 
             if not search_results:
                 return jsonify({'error': 'Song not found'}), 404
 
             video_id = search_results[0]['videoId']
-            yt_url = f"https://music.youtube.com/watch?v={video_id}"
-            output_template = f'{temp_dir}/%(title)s.%(ext)s'
 
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '320',
-                }],
-                'outtmpl': output_template,
-                'ffmpeg_location': '/usr/bin/ffmpeg',
-                'extract_flat': False,
-                'no_check_certificate': True,
-                'http_headers': headers
-            }
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                app.logger.debug(f"Downloading from URL: {yt_url}")
-                info = ydl.extract_info(yt_url, download=True)
-                file_path = Path(ydl.prepare_filename(info)).with_suffix('.mp3')
-
-                app.logger.debug(f"Download complete, file path: {file_path}")
+            # Download using custom downloader
+            downloader = CustomMusicDownloader(API_KEY)
+            try:
+                stream_url = downloader.get_stream_url(video_id)
+                output_path = Path(temp_dir) / f"{title} - {artist}"
+                mp3_file = downloader.download_audio(stream_url, output_path)
 
                 def generate():
-                    with open(file_path, 'rb') as f:
+                    with open(mp3_file, 'rb') as f:
                         while True:
                             chunk = f.read(8192)
                             if not chunk:
@@ -100,6 +74,10 @@ def download():
                 response = Response(generate(), mimetype='audio/mpeg')
                 response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
                 return response
+
+            except Exception as e:
+                app.logger.error(f"Download error: {str(e)}")
+                return jsonify({'error': 'Failed to download audio'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
