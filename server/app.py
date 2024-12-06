@@ -78,26 +78,71 @@ def download_track(title, artist, spotify_url):
         return None
 
 
+# @app.route('/download', methods=['POST'])
+# def download():
+#     try:
+#         title = request.json.get('title')
+#         artist = request.json.get('artist')
+#         spotify_url = request.json.get('url')
+#
+#         cookie_file = '/var/www/spotifysave/cookies.txt'
+#
+#         with tempfile.TemporaryDirectory() as temp_dir:
+#             spotdl = Spotdl(
+#                 client_id='41c1c1a4546c413498d522b0f0508670',
+#                 client_secret='c36781c6845448d3b97a1d30403d8bbe',
+#                 downloader_settings={
+#                     'output': f'{temp_dir}/%(title)s.%(ext)s',
+#                     'format': 'mp3',
+#                     'cookie_file': cookie_file,
+#                     'yt_dlp_args': f'--cookies {cookie_file}',
+#                     'audio_providers': ['youtube-music']
+#                 }
+#             )
+#
+#             songs = spotdl.search([spotify_url])
+#             if not songs:
+#                 return jsonify({'error': 'Song not found'}), 404
+#
+#             song, file_path = spotdl.download(songs[0])
+#
+#             if file_path and file_path.exists():
+#                 response = send_file(
+#                     str(file_path),
+#                     mimetype='audio/mpeg',
+#                     as_attachment=True,
+#                     download_name=f"{title} - {artist}.mp3"
+#                 )
+#                 return response
+#
+#             return jsonify({'error': 'Download failed'}), 500
+#
+#     except Exception as e:
+#         app.logger.error(f"Download error: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        title = request.json.get('title')
-        artist = request.json.get('artist')
         spotify_url = request.json.get('url')
 
-        cookie_file = '/var/www/spotifysave/cookies.txt'
-
         with tempfile.TemporaryDirectory() as temp_dir:
+            downloader_settings = {
+                'format': 'mp3',
+                'cookie_file': '/var/www/spotifysave/cookies.txt',
+                'output': f'{temp_dir}/%(title)s.%(ext)s',
+                'ffmpeg': 'ffmpeg',
+                'threads': 1,
+                'audio_providers': ['youtube-music'],
+                'headless': True,
+                'yt_dlp_args': '--force-ipv4 --no-check-certificates',
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+
             spotdl = Spotdl(
                 client_id='41c1c1a4546c413498d522b0f0508670',
                 client_secret='c36781c6845448d3b97a1d30403d8bbe',
-                downloader_settings={
-                    'output': f'{temp_dir}/%(title)s.%(ext)s',
-                    'format': 'mp3',
-                    'cookie_file': cookie_file,
-                    'yt_dlp_args': f'--cookies {cookie_file}',
-                    'audio_providers': ['youtube-music']
-                }
+                downloader_settings=downloader_settings
             )
 
             songs = spotdl.search([spotify_url])
@@ -107,13 +152,12 @@ def download():
             song, file_path = spotdl.download(songs[0])
 
             if file_path and file_path.exists():
-                response = send_file(
+                return send_file(
                     str(file_path),
                     mimetype='audio/mpeg',
                     as_attachment=True,
-                    download_name=f"{title} - {artist}.mp3"
+                    download_name=file_path.name
                 )
-                return response
 
             return jsonify({'error': 'Download failed'}), 500
 
