@@ -83,28 +83,29 @@ def download():
     try:
         title = request.json.get('title')
         artist = request.json.get('artist')
-        query = f"{title} - {artist}"
+        spotify_url = request.json.get('url')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            command = [
-                '/var/www/spotifysave/venv/bin/spotdl',
-                'sync',
-                '--output', temp_dir,
-                '--search', query
-            ]
+        spotdl = Spotdl(
+            client_id='41c1c1a4546c413498d522b0f0508670',
+            client_secret='c36781c6845448d3b97a1d30403d8bbe'
+        )
 
-            process = subprocess.run(command, capture_output=True, text=True)
+        # Search for song
+        songs = spotdl.search([f"{title} - {artist}"])
+        if not songs:
+            return jsonify({'error': 'Song not found'}), 404
 
-            mp3_files = list(Path(temp_dir).glob('*.mp3'))
-            if mp3_files and mp3_files[0].stat().st_size > 1024:
-                return send_file(
-                    str(mp3_files[0]),
-                    mimetype='audio/mpeg',
-                    as_attachment=True,
-                    download_name=f"{title} - {artist}.mp3"
-                )
+        # Download first matching song
+        song, file_path = spotdl.download(songs[0])
+        if file_path:
+            return send_file(
+                str(file_path),
+                mimetype='audio/mpeg',
+                as_attachment=True,
+                download_name=f"{title} - {artist}.mp3"
+            )
 
-            return jsonify({'error': process.stderr}), 500
+        return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
