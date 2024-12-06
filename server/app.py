@@ -66,14 +66,13 @@ def download():
                 'ffmpeg_location': '/usr/bin/ffmpeg',
                 'extract_flat': False,
                 'no_check_certificate': True,
+                'cookies': '/var/www/spotifysave/cookies.txt',
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'Accept': '*/*',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Referer': 'https://music.youtube.com/'
-                },
-                'username': 'ak663904@gmail.com',  # Add your YouTube username
-                'password': 'Abhishek#1436',  # Add your YouTube password
+                }
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
