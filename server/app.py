@@ -44,7 +44,6 @@ def download():
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Initialize Spotdl with updated settings
             spotdl = Spotdl(
                 client_id='41c1c1a4546c413498d522b0f0508670',
                 client_secret='c36781c6845448d3b97a1d30403d8bbe',
@@ -55,10 +54,11 @@ def download():
                     'threads': 1,
                     'audio_providers': ['youtube-music', 'youtube'],
                     'filter_results': True,
-                    'yt_dlp_args': '--no-check-certificate --force-ipv4 --geo-bypass --add-header "User-Agent: Mozilla/5.0"',
+                    'yt_dlp_args': '--force-ipv4 --no-check-certificates',  # Simplified args
+                    'headless': True,
+                    'quiet': True,
                     'overwrite': 'force',
                     'log_level': 'DEBUG',
-                    'simple_tui': True
                 }
             )
 
