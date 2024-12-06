@@ -22,6 +22,8 @@ from pathlib import Path
 import requests
 import re
 from urllib.parse import quote
+from youtubesearchpython import VideosSearch
+import yt_dlp
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -130,8 +132,67 @@ def download_track(title, artist, spotify_url):
 
 
 
+
+
 @app.route('/download', methods=['POST'])
 def download():
+    try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        
+        # Use YouTube Search Python
+        search_query = f"{title} {artist} official"
+        videosSearch = VideosSearch(search_query, limit=1)
+        results = videosSearch.result()
+        
+        app.logger.debug(f"Search results: {results}")
+        
+        if not results['result']:
+            return jsonify({'error': 'Song not found'}), 404
+            
+        video_id = results['result'][0]['id']
+        app.logger.debug(f"Found video ID: {video_id}")
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
+                'ffmpeg_location': '/usr/bin/ffmpeg',
+                'no_check_certificate': True,
+                'no_warnings': True,
+                'quiet': True,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                }
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    video_url = f"https://www.youtube.com/watch?v={video_id}"
+                    app.logger.debug(f"Attempting download from: {video_url}")
+                    ydl.download([video_url])
+                    
+                    mp3_files = list(Path(temp_dir).glob('*.mp3'))
+                    if mp3_files:
+                        return send_file(
+                            str(mp3_files[0]),
+                            mimetype='audio/mpeg',
+                            as_attachment=True,
+                            download_name=f"{title} - {artist}.mp3"
+                        )
+                except Exception as e:
+                    app.logger.error(f"Download error: {str(e)}")
+                    
+            return jsonify({'error': 'Download failed'}), 500
+
+    except Exception as e:
+        app.logger.error(f"Request error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
     try:
         title = request.json.get('title')
         artist = request.json.get('artist')
