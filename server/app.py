@@ -24,7 +24,10 @@ if not os.path.isfile(FFMPEG_PATH):
     raise EnvironmentError("ffmpeg is not installed or not found at /usr/bin/ffmpeg. Install it using 'sudo apt install ffmpeg'.")
 
 # Spotdl setup
-spotdl = Spotdl()
+spotdl = Spotdl(
+    client_id= '41c1c1a4546c413498d522b0f0508670',
+    client_secret='c36781c6845448d3b97a1d30403d8bbe'
+)
 
 # YouTube downloader options
 YTDL_OPTIONS = {
