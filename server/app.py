@@ -67,7 +67,9 @@ def download():
                 'extract_flat': False,
                 'force_generic_extractor': False,
                 'geo_bypass': True,
-                'nocheckcertificate': True
+                'nocheckcertificate': True,
+                'cookiesfrombrowser': ('chrome',),  # Added this line
+                'cookiefile': '/var/www/spotifysave/cookies.txt'  # Added this line
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
