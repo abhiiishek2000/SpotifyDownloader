@@ -54,7 +54,14 @@ def download():
                     'threads': 1,
                     'audio_providers': ['youtube'],
                     'filter_results': False,
-                    'yt_dlp_args': '--no-check-certificate --user-agent "Mozilla/5.0 (Android 13; Mobile; rv:68.0) Gecko/68.0 Firefox/120.0"',
+                    'yt_dlp_args': (
+                        '--no-check-certificate '
+                        '--extractor-args "youtube:player_client=android,web" '
+                        '--prefer-insecure '
+                        '--user-agent "com.google.android.youtube/17.31.35 (Linux; U; Android 11)" '
+                        '--add-header "Origin:https://www.youtube.com" '
+                        '--add-header "Sec-Fetch-Mode:navigate"'
+                    ),
                     'quiet': True,
                     'overwrite': 'force'
                 }
