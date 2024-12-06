@@ -46,13 +46,26 @@ def download():
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            ytmusic = YTMusic()
+            from ytmusicapi import YTMusic
+
+            # Initialize YTMusic with headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Content-Type': 'application/json',
+                'X-Goog-AuthUser': '0',
+                'x-origin': 'https://music.youtube.com'
+            }
+
+            ytmusic = YTMusic(headers_raw=headers)
             search_results = ytmusic.search(f"{title} {artist}", filter="songs", limit=1)
 
             if not search_results:
                 return jsonify({'error': 'Song not found'}), 404
 
-            yt_url = f"https://music.youtube.com/watch?v={search_results[0]['videoId']}"
+            video_id = search_results[0]['videoId']
+            yt_url = f"https://music.youtube.com/watch?v={video_id}"
             output_template = f'{temp_dir}/%(title)s.%(ext)s'
 
             ydl_opts = {
@@ -66,13 +79,7 @@ def download():
                 'ffmpeg_location': '/usr/bin/ffmpeg',
                 'extract_flat': False,
                 'no_check_certificate': True,
-                'cookiefile': '/var/www/spotifysave/cookies.txt',
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': '*/*',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Referer': 'https://music.youtube.com/'
-                }
+                'http_headers': headers
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
