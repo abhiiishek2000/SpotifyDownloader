@@ -52,11 +52,13 @@ def download():
                     'format': 'mp3',
                     'ffmpeg': '/usr/bin/ffmpeg',
                     'threads': 1,
-                    'audio_providers': ['youtube'],
-                    'filter_results': True,
+                    'audio_providers': ['youtube-music', 'youtube'],  # Added back youtube-music
+                    'filter_results': False,  # Disabled filtering to get more results
                     'yt_dlp_args': '--no-check-certificate',
                     'quiet': True,
                     'overwrite': 'force',
+                    'search_query': '{title} {artist} audio',  # Added search query format
+                    'max_filename_length': None
                 }
             )
             app.logger.debug(f"Searching for: {spotify_url}")
