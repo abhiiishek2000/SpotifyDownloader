@@ -52,10 +52,9 @@ def download():
                     'format': 'mp3',
                     'ffmpeg': '/usr/bin/ffmpeg',
                     'threads': 1,
-                    'audio_providers': ['youtube-music', 'youtube'],
+                    'audio_providers': ['youtube'],
                     'filter_results': False,
-                    'yt_dlp_args': '--no-check-certificate --prefer-insecure',
-                    'proxy': f'http://46.202.179.38:8118',  # Using Privoxy
+                    'yt_dlp_args': '--no-check-certificate --user-agent "Mozilla/5.0 (Android 13; Mobile; rv:68.0) Gecko/68.0 Firefox/120.0"',
                     'quiet': True,
                     'overwrite': 'force'
                 }
