@@ -130,9 +130,76 @@ def download_track(title, artist, spotify_url):
 
 
 
-
 @app.route('/download', methods=['POST'])
 def download():
+    try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        
+        # Search YouTube Music
+        search_query = quote(f"{title} {artist}")
+        search_url = f"https://music.youtube.com/search?q={search_query}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': 'https://music.youtube.com'
+        }
+        
+        response = requests.get(search_url, headers=headers)
+        app.logger.debug(f"Search response length: {len(response.text)}")
+        
+        # Save part of response for debugging
+        debug_text = response.text[:1000]  # First 1000 characters
+        app.logger.debug(f"Response preview: {debug_text}")
+        
+        # Try parsing with BeautifulSoup
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Look for ytmusic-responsive-list-item-renderer
+        for script in soup.find_all('script'):
+            if script.string and 'videoId' in script.string:
+                app.logger.debug(f"Found script with videoId: {script.string[:200]}")
+                # Try extracting videoId
+                match = re.search(r'"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"', script.string)
+                if match:
+                    video_id = match.group(1)
+                    app.logger.debug(f"Found video ID in script: {video_id}")
+                    break
+        
+        # Try direct regex on full response
+        patterns = [
+            r'VideoId":"([a-zA-Z0-9_-]{11})',
+            r'v=([a-zA-Z0-9_-]{11})',
+            r'"videoId":"([a-zA-Z0-9_-]{11})"',
+            r'data-video-ids="([a-zA-Z0-9_-]{11})"'
+        ]
+        
+        video_id = None
+        for pattern in patterns:
+            matches = re.finditer(pattern, response.text)
+            for match in matches:
+                potential_id = match.group(1)
+                app.logger.debug(f"Found potential video ID with pattern {pattern}: {potential_id}")
+                if len(potential_id) == 11:
+                    video_id = potential_id
+                    break
+            if video_id:
+                break
+                
+        if not video_id:
+            app.logger.error("No video ID found in response")
+            return jsonify({'error': 'Song not found'}), 404
+            
+        # Rest of your download code
+        
+    except Exception as e:
+        app.logger.error(f"Request error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
     try:
         title = request.json.get('title')
         artist = request.json.get('artist')
