@@ -53,23 +53,27 @@ def download():
                 return jsonify({'error': 'Song not found'}), 404
 
             yt_url = f"https://music.youtube.com/watch?v={search_results[0]['videoId']}"
+            output_template = f'{temp_dir}/%(title)s.%(ext)s'
 
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
-                    'preferredquality': '192',
+                    'preferredquality': '320',
                 }],
-                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
+                'outtmpl': output_template,
                 'quiet': True,
                 'no_warnings': True,
+                'ffmpeg_location': '/usr/bin/ffmpeg',
                 'extract_flat': False,
-                'force_generic_extractor': False,
-                'geo_bypass': True,
-                'nocheckcertificate': True,
-                'cookiesfrombrowser': ('chrome',),  # Added this line
-                'cookiefile': '/var/www/spotifysave/cookies.txt'  # Added this line
+                'no_check_certificate': True,
+                'extractor_args': {
+                    'youtube': {
+                        'nocheckcertificate': True,
+                        'no_warnings': True
+                    }
+                }
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
