@@ -137,6 +137,88 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
         
+        # Search YouTube Music
+        search_query = quote(f"{title} {artist}")
+        search_url = f"https://music.youtube.com/search?q={search_query}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': 'https://music.youtube.com'
+        }
+        
+        response = requests.get(search_url, headers=headers)
+        app.logger.debug(f"Search response length: {len(response.text)}")
+        
+        # Try different regex patterns
+        patterns = [
+            r'videoId":"([^"]+)"',
+            r'watchEndpoint":{"videoId":"([^"]+)"',
+            r'"videoId"\s*:\s*"([^"]+)"',
+            r'/watch\?v=([a-zA-Z0-9_-]{11})'
+        ]
+        
+        video_id = None
+        for pattern in patterns:
+            matches = re.finditer(pattern, response.text)
+            for match in matches:
+                potential_id = match.group(1)
+                if len(potential_id) == 11:  # YouTube IDs are 11 characters
+                    video_id = potential_id
+                    app.logger.debug(f"Found video ID: {video_id}")
+                    break
+            if video_id:
+                break
+                
+        if not video_id:
+            app.logger.error("No video ID found in response")
+            return jsonify({'error': 'Song not found'}), 404
+            
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
+                'ffmpeg_location': '/usr/bin/ffmpeg',
+                'no_check_certificate': True,
+                'no_warnings': True,
+                'quiet': True,
+                'http_headers': headers
+            }
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    video_url = f"https://www.youtube.com/watch?v={video_id}"
+                    app.logger.debug(f"Attempting download from: {video_url}")
+                    ydl.download([video_url])
+                    
+                    mp3_files = list(Path(temp_dir).glob('*.mp3'))
+                    if mp3_files:
+                        return send_file(
+                            str(mp3_files[0]),
+                            mimetype='audio/mpeg',
+                            as_attachment=True,
+                            download_name=f"{title} - {artist}.mp3"
+                        )
+                except Exception as e:
+                    app.logger.error(f"Download error: {str(e)}")
+                    
+            return jsonify({'error': 'Download failed'}), 500
+
+    except Exception as e:
+        app.logger.error(f"Request error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    try:
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        
         # First get the video ID from YouTube Music
         search_query = quote(f"{title} {artist}")
         search_url = f"https://music.youtube.com/search?q={search_query}"
