@@ -66,7 +66,6 @@ def download():
                 'ffmpeg_location': '/usr/bin/ffmpeg',
                 'extract_flat': False,
                 'no_check_certificate': True,
-                'cookiefile': '/var/www/spotifysave/cookies.txt',
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'Accept': '*/*',
