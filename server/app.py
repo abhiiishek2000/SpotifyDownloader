@@ -63,16 +63,15 @@ def download():
                     'preferredquality': '320',
                 }],
                 'outtmpl': output_template,
-                'quiet': True,
-                'no_warnings': True,
                 'ffmpeg_location': '/usr/bin/ffmpeg',
                 'extract_flat': False,
                 'no_check_certificate': True,
-                'extractor_args': {
-                    'youtube': {
-                        'nocheckcertificate': True,
-                        'no_warnings': True
-                    }
+                'cookiesfrombrowser': ('chrome',),
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Referer': 'https://music.youtube.com/'
                 }
             }
 
