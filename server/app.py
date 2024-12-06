@@ -52,13 +52,15 @@ def download():
                     'format': 'mp3',
                     'ffmpeg': '/usr/bin/ffmpeg',
                     'threads': 1,
-                    'audio_providers': ['youtube-music', 'youtube'],
+                    'audio_providers': ['youtube'],  # Changed to only YouTube
                     'filter_results': True,
-                    'yt_dlp_args': '--force-ipv4 --no-check-certificates',  # Simplified args
+                    'yt_dlp_args': '--force-ipv4 --no-check-certificates --geo-bypass --extractor-args youtube:player_client=android',
                     'headless': True,
                     'quiet': True,
                     'overwrite': 'force',
                     'log_level': 'DEBUG',
+                    'extract_flat': True,
+                    'no_warnings': True
                 }
             )
 
