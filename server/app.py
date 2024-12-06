@@ -57,12 +57,8 @@ def download():
                     'threads': 1,
                     'audio_providers': ['youtube-music', 'youtube'],
                     'filter_results': True,
+                    'yt_dlp_args': '--force-ipv4 --no-check-certificates',  # Changed to string
                     'headless': True,
-                    'yt_dlp_args': {
-                        'force-ipv4': True,
-                        'no-check-certificates': True,
-                        'cookies-from-browser': 'chrome'  # Or another browser
-                    },
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -71,7 +67,6 @@ def download():
                     }
                 }
             )
-
             # Log and search for songs
             app.logger.debug(f"Searching for: {spotify_url}")
             songs = spotdl.search([spotify_url])
