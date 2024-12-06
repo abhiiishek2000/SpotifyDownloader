@@ -66,9 +66,9 @@ def download():
                 'ffmpeg_location': '/usr/bin/ffmpeg',
                 'extract_flat': False,
                 'no_check_certificate': True,
-                'cookiesfrombrowser': ('chrome',),
+                'cookiefile': '/var/www/spotifysave/cookies.txt',
                 'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'Accept': '*/*',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Referer': 'https://music.youtube.com/'
