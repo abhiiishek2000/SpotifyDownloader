@@ -52,7 +52,7 @@ def download():
                     'format': 'mp3',
                     'ffmpeg': '/usr/bin/ffmpeg',
                     'threads': 1,
-                    'audio_providers': ['youtube-music', 'youtube'],  # Added back youtube-music
+                    'audio_providers': ['youtube-music'],  # Added back youtube-music
                     'filter_results': False,  # Disabled filtering to get more results
                     'yt_dlp_args': '--no-check-certificate',
                     'quiet': True,
