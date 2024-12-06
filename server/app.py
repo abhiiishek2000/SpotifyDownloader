@@ -97,9 +97,10 @@ def download():
             return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
+        app.logger.error(f"Download error: {str(e)}", exc_info=True)  # Add full traceback
+
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/')
 def index():
