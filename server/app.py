@@ -6,6 +6,9 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 import logging
 from ytmusicapi import YTMusic
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from youtube_music_downloader import CustomMusicDownloader
 
 logging.basicConfig(level=logging.DEBUG)
