@@ -57,10 +57,11 @@ def download():
                     'threads': 1,
                     'audio_providers': ['youtube-music', 'youtube'],
                     'filter_results': True,
-                    'yt_dlp_args': '--force-ipv4 --geo-bypass --no-check-certificate --extractor-retries 3',
+                    'yt_dlp_args': '--force-ipv4 --no-check-certificates --geo-bypass',
+                    'extractor_retries': 3,  # Moved this to its own setting
+                    'headless': True,
                     'http_headers': {
-                        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept-Language': 'en-US,en;q=0.9',
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                         'Origin': 'https://music.youtube.com',
                         'Referer': 'https://music.youtube.com/'
