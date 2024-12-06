@@ -1,10 +1,12 @@
 import tempfile
-from flask import Flask, render_template, request, jsonify, send_file, Response
+from pathlib import Path
+from flask import Flask, render_template, request, jsonify, Response
 import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta
 import logging
-from spotdl import Spotdl
+from ytmusicapi import YTMusic
+import yt_dlp
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -40,12 +42,10 @@ def get_track_info(url):
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        spotify_url = request.json.get('url')
         title = request.json.get('title')
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            from ytmusicapi import YTMusic
             ytmusic = YTMusic()
             search_results = ytmusic.search(f"{title} {artist}", filter="songs", limit=1)
 
@@ -62,12 +62,20 @@ def download():
                     'preferredquality': '192',
                 }],
                 'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
-                'quiet': True
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'force_generic_extractor': False,
+                'geo_bypass': True,
+                'nocheckcertificate': True
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                app.logger.debug(f"Downloading from URL: {yt_url}")
                 info = ydl.extract_info(yt_url, download=True)
                 file_path = Path(ydl.prepare_filename(info)).with_suffix('.mp3')
+
+                app.logger.debug(f"Download complete, file path: {file_path}")
 
                 def generate():
                     with open(file_path, 'rb') as f:
