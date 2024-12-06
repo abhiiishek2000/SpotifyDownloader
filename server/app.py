@@ -15,6 +15,10 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from spotdl import Spotdl
+import urllib.parse
+import yt_dlp
+import tempfile
+from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -120,6 +124,8 @@ def download_track(title, artist, spotify_url):
 #     except Exception as e:
 #         app.logger.error(f"Download error: {str(e)}")
 #         return jsonify({'error': str(e)}), 500
+
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -179,7 +185,7 @@ def download():
                             download_name=f"{title} - {artist}.mp3"
                         )
                         
-                    # Fallback to regular YouTube search if YouTube Music fails
+                    # Fallback to regular YouTube search
                     app.logger.debug("Falling back to YouTube search")
                     ydl.download([f"ytsearch1:{title} {artist} official audio"])
                     
@@ -200,109 +206,6 @@ def download():
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    try:
-        spotify_url = request.json.get('url')
-        title = request.json.get('title')
-        artist = request.json.get('artist')
-        
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Get video URL from Spotify URL
-            search_query = f"{title} {artist} audio"
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
-                'default_search': 'ytsearch',
-                'no_warnings': True,
-                'quiet': True,
-                'extract_flat': True,
-                'force_generic_extractor': True,
-                'nocheckcertificate': True,
-                'ignoreerrors': True,
-                'no_color': True,
-                'geo_bypass': True,
-                'socketTimeout': 30,
-                'youtube_include_dash_manifest': False,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                }
-            }
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                try:
-                    # First search for the video
-                    info = ydl.extract_info(f"ytsearch:{search_query}", download=False)
-                    if not info or 'entries' not in info or not info['entries']:
-                        return jsonify({'error': 'No results found'}), 404
-                        
-                    video_url = info['entries'][0]['url']
-                    
-                    # Then download it
-                    ydl.download([video_url])
-                    
-                    # Find downloaded file
-                    mp3_files = list(Path(temp_dir).glob('*.mp3'))
-                    if mp3_files:
-                        return send_file(
-                            str(mp3_files[0]),
-                            mimetype='audio/mpeg',
-                            as_attachment=True,
-                            download_name=f"{title} - {artist}.mp3"
-                        )
-                except Exception as e:
-                    app.logger.error(f"YT-DLP error: {str(e)}")
-                    
-            return jsonify({'error': 'Download failed'}), 500
-
-    except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-    try:
-        spotify_url = request.json.get('url')
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            downloader_settings = {
-                'format': 'mp3',
-                'cookie_file': '/var/www/spotifysave/cookies.txt',
-                'output': f'{temp_dir}/%(title)s.%(ext)s',
-                'ffmpeg': 'ffmpeg',
-                'threads': 1,
-                'audio_providers': ['youtube-music'],
-                'headless': True,
-                'yt_dlp_args': '--force-ipv4 --no-check-certificates',
-                # 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-
-            spotdl = Spotdl(
-                client_id='41c1c1a4546c413498d522b0f0508670',
-                client_secret='c36781c6845448d3b97a1d30403d8bbe',
-                downloader_settings=downloader_settings
-            )
-
-            songs = spotdl.search([spotify_url])
-            if not songs:
-                return jsonify({'error': 'Song not found'}), 404
-
-            song, file_path = spotdl.download(songs[0])
-
-            if file_path and file_path.exists():
-                return send_file(
-                    str(file_path),
-                    mimetype='audio/mpeg',
-                    as_attachment=True,
-                    download_name=file_path.name
-                )
-
-            return jsonify({'error': 'Download failed'}), 500
-
-    except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
