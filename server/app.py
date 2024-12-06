@@ -120,9 +120,86 @@ def download_track(title, artist, spotify_url):
 #     except Exception as e:
 #         app.logger.error(f"Download error: {str(e)}")
 #         return jsonify({'error': str(e)}), 500
-
 @app.route('/download', methods=['POST'])
 def download():
+    try:
+        spotify_url = request.json.get('url')
+        title = request.json.get('title')
+        artist = request.json.get('artist')
+        cookie_file = '/var/www/spotifysave/cookies.txt'
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            search_query = f"ytmusic1:{title} {artist} official music audio"
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{temp_dir}/%(title)s.%(ext)s',
+                'cookiefile': cookie_file,
+                'cookies': cookie_file,
+                'default_search': 'ytmusic',
+                'extractor_args': {
+                    'youtube': {
+                        'skip': ['dash', 'hls'],
+                        'player_skip': ['js', 'configs', 'webpage']
+                    },
+                    'youtubetab': ['music']
+                },
+                'extract_flat': False,
+                'writethumbnail': True,
+                'no_warnings': True,
+                'quiet': True,
+                'nocheckcertificate': True,
+                'ignoreerrors': False,
+                'no_color': True,
+                'geo_bypass': True,
+                'socket_timeout': 30,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Origin': 'https://music.youtube.com'
+                }
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    # First try YouTube Music
+                    yt_music_url = f"https://music.youtube.com/search?q={urllib.parse.quote(f'{title} {artist}')}"
+                    ydl.download([yt_music_url])
+                    
+                    mp3_files = list(Path(temp_dir).glob('*.mp3'))
+                    if mp3_files:
+                        return send_file(
+                            str(mp3_files[0]),
+                            mimetype='audio/mpeg',
+                            as_attachment=True,
+                            download_name=f"{title} - {artist}.mp3"
+                        )
+                        
+                    # Fallback to regular YouTube search if YouTube Music fails
+                    app.logger.debug("Falling back to YouTube search")
+                    ydl.download([f"ytsearch1:{title} {artist} official audio"])
+                    
+                    mp3_files = list(Path(temp_dir).glob('*.mp3'))
+                    if mp3_files:
+                        return send_file(
+                            str(mp3_files[0]),
+                            mimetype='audio/mpeg',
+                            as_attachment=True,
+                            download_name=f"{title} - {artist}.mp3"
+                        )
+                        
+                except Exception as e:
+                    app.logger.error(f"YT-DLP error: {str(e)}")
+                    
+            return jsonify({'error': 'Download failed'}), 500
+
+    except Exception as e:
+        app.logger.error(f"Download error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
     try:
         spotify_url = request.json.get('url')
         title = request.json.get('title')
