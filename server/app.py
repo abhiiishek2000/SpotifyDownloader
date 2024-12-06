@@ -55,7 +55,7 @@ def download():
                     'audio_providers': ['youtube-music', 'youtube'],
                     'filter_results': False,
                     'yt_dlp_args': '--no-check-certificate --prefer-insecure',
-                    'proxy': 'socks5://127.0.0.1:9050',  # Using Tor proxy
+                    'proxy': 'http://127.0.0.1:8118',  # Using Privoxy
                     'quiet': True,
                     'overwrite': 'force'
                 }
