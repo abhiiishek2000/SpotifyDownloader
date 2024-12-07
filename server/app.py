@@ -1,17 +1,13 @@
 # app.py
-import tempfile
-from pathlib import Path
-
-from flask import Flask, render_template, request, jsonify, send_file, Response
 import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta
-import logging
-
-from spotdl import Spotdl
+import tempfile
+from pathlib import Path
+from flask import Flask, render_template, request, jsonify, Response
 from ytmusicapi import YTMusic
-
-
+import logging
+from youtube_music_downloader import YouTubeMusicDownloader
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -19,6 +15,7 @@ app = Flask(__name__,
             static_folder='../src',
             static_url_path='',
             template_folder='../src')
+
 
 def get_track_info(url):
     try:
@@ -51,36 +48,24 @@ def download():
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Initialize Spotdl with working settings
-            spotdl = Spotdl(
-                client_id='41c1c1a4546c413498d522b0f0508670',
-                client_secret='c36781c6845448d3b97a1d30403d8bbe',
-                downloader_settings={
-                    'output': f'{temp_dir}/%(artist)s - %(title)s.%(ext)s',
-                    'format': 'mp3',
-                    'ffmpeg': '/usr/bin/ffmpeg',
-                    'audio_providers': ['youtube'],
-                    'filter_results': False,  # Disabled filtering
-                    'search_query': '{artist} {title} audio',  # Better search query format
-                    'yt_dlp_args': '--no-check-certificates --force-ipv4',
-                    'overwrite': 'force',
-                    'only_verified_results': False,  # Don't require verified results
-                    'max_filename_length': None
-                }
-            )
+            # Search using YTMusic
+            ytmusic = YTMusic()
+            search_results = ytmusic.search(f"{title} {artist}", filter="songs")
 
-            app.logger.debug(f"Searching for: {spotify_url}")
-            songs = spotdl.search([spotify_url])
-
-            if not songs:
+            if not search_results:
                 return jsonify({'error': 'Song not found'}), 404
 
-            app.logger.debug(f"Found {len(songs)} songs")
-            song, file_path = spotdl.download(songs[0])
+            video_id = search_results[0]['videoId']
 
-            if file_path and file_path.exists():
+            # Download using custom downloader
+            downloader = YouTubeMusicDownloader()
+            output_path = Path(temp_dir) / f"{title} - {artist}"
+
+            try:
+                mp3_file = downloader.download_song(video_id, output_path)
+
                 def generate():
-                    with open(file_path, 'rb') as f:
+                    with open(mp3_file, 'rb') as f:
                         while True:
                             chunk = f.read(8192)
                             if not chunk:
@@ -91,14 +76,19 @@ def download():
                 response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
                 return response
 
-            return jsonify({'error': 'Download failed'}), 500
+            except Exception as e:
+                app.logger.error(f"Download error: {str(e)}")
+                return jsonify({'error': 'Failed to download audio'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/track-info', methods=['POST'])
 def get_info():
@@ -111,13 +101,16 @@ def get_info():
         return jsonify(track_info)
     return jsonify({'error': 'Could not fetch track info'}), 500
 
+
 @app.route('/privacy')
 def privacy():
     return render_template('privacy.html')
 
+
 @app.route('/terms')
 def terms():
     return render_template('terms.html')
+
 
 if __name__ == '__main__':
     app.run(debug=True)

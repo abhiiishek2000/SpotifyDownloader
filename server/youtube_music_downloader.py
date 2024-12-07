@@ -1,66 +1,55 @@
-# youtube_music_downloader.py
-
+import json
 import requests
-import subprocess
+from ytmusicapi import YTMusic
 from pathlib import Path
+import subprocess
 
 
-class CustomMusicDownloader:
-    def __init__(self, api_key):
-        self.api_key = api_key
+class YouTubeMusicDownloader:
+    def __init__(self):
+        self.ytmusic = YTMusic()
         self.session = requests.Session()
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-            'Accept': '*/*',
-            'Origin': 'https://music.youtube.com',
-            'Referer': 'https://music.youtube.com/',
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': self.api_key
-        }
 
     def get_stream_url(self, video_id):
-        player_url = f"https://music.youtube.com/youtubei/v1/player?key={self.api_key}"
-        data = {
-            "videoId": video_id,
-            "context": {
-                "client": {
-                    "clientName": "ANDROID_MUSIC",
-                    "clientVersion": "5.28.1",
-                    "hl": "en",
-                    "gl": "US",
-                    "clientScreen": "WATCH",
-                    "androidSdkVersion": 30
-                }
-            }
-        }
+        """Get audio stream URL from video ID"""
+        try:
+            # Get watch playlist data which contains URLs
+            data = self.ytmusic.get_watch_playlist(videoId=video_id)
+            if not data or 'tracks' not in data:
+                raise Exception("Could not get video data")
 
-        response = self.session.post(player_url, json=data, headers=self.headers)
-        response.raise_for_status()
+            # Get track details
+            track = next((t for t in data['tracks'] if t['videoId'] == video_id), None)
+            if not track:
+                raise Exception("Track not found in playlist")
 
-        data = response.json()
-        print("API Response:", data)  # Add this for debugging
+            # Return the best audio URL
+            return f"https://music.youtube.com/watch?v={video_id}"
 
-        if 'streamingData' not in data:
-            raise Exception(f"No streaming data found. Response: {data}")
+        except Exception as e:
+            raise Exception(f"Failed to get stream URL: {str(e)}")
 
-        formats = data['streamingData']['adaptiveFormats']
-        audio_format = next(f for f in formats if f['mimeType'].startswith('audio/'))
-        return audio_format['url']
+    def download_song(self, video_id, output_path):
+        """Download and convert song"""
+        stream_url = self.get_stream_url(video_id)
 
-    def download_audio(self, stream_url, output_path):
-        response = self.session.get(stream_url, headers=self.headers, stream=True)
+        # Download audio stream
+        response = self.session.get(stream_url, stream=True)
         temp_audio = output_path.with_suffix('.m4a')
 
         with open(temp_audio, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+                if chunk:
+                    f.write(chunk)
 
+        # Convert to MP3 using ffmpeg
         output_mp3 = output_path.with_suffix('.mp3')
         subprocess.run([
             'ffmpeg', '-i', str(temp_audio),
             '-acodec', 'libmp3lame', '-ab', '320k',
             str(output_mp3)
-        ])
+        ], check=True)
 
+        # Cleanup temp file
         temp_audio.unlink()
         return output_mp3
