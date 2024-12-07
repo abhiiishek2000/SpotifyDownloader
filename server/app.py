@@ -1,11 +1,17 @@
 # app.py
 import tempfile
+from pathlib import Path
+
 from flask import Flask, render_template, request, jsonify, send_file, Response
 import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta
 import logging
+
 from spotdl import Spotdl
+from ytmusicapi import YTMusic
+
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -36,6 +42,7 @@ def get_track_info(url):
         app.logger.error(f"Error getting track info: {str(e)}")
         return None
 
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -44,6 +51,7 @@ def download():
         artist = request.json.get('artist')
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Initialize Spotdl with working settings
             spotdl = Spotdl(
                 client_id='41c1c1a4546c413498d522b0f0508670',
                 client_secret='c36781c6845448d3b97a1d30403d8bbe',
@@ -51,21 +59,13 @@ def download():
                     'output': f'{temp_dir}/%(artist)s - %(title)s.%(ext)s',
                     'format': 'mp3',
                     'ffmpeg': '/usr/bin/ffmpeg',
-                    'threads': 1,
                     'audio_providers': ['youtube'],
-                    'filter_results': False,
-                    'yt_dlp_args': (
-                        '--no-check-certificate '
-                        '--extractor-args "youtube:player_client=android,web" '
-                        '--prefer-insecure '
-                        '--user-agent "com.google.android.youtube/17.31.35 (Linux; U; Android 11)" '
-                        '--add-header "Origin:https://www.youtube.com" '
-                        '--add-header "Sec-Fetch-Mode:navigate"'
-                    ),
-                    'quiet': True,
+                    'cookie_file': None,
+                    'yt_dlp_args': '--no-check-certificates --force-ipv4',
                     'overwrite': 'force'
                 }
             )
+
             app.logger.debug(f"Searching for: {spotify_url}")
             songs = spotdl.search([spotify_url])
 
@@ -93,7 +93,6 @@ def download():
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
