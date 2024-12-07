@@ -1,7 +1,5 @@
-import json
 import requests
 from ytmusicapi import YTMusic
-from pathlib import Path
 import subprocess
 
 
