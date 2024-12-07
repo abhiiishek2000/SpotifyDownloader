@@ -60,9 +60,12 @@ def download():
                     'format': 'mp3',
                     'ffmpeg': '/usr/bin/ffmpeg',
                     'audio_providers': ['youtube'],
-                    'cookie_file': None,
+                    'filter_results': False,  # Disabled filtering
+                    'search_query': '{artist} {title} audio',  # Better search query format
                     'yt_dlp_args': '--no-check-certificates --force-ipv4',
-                    'overwrite': 'force'
+                    'overwrite': 'force',
+                    'only_verified_results': False,  # Don't require verified results
+                    'max_filename_length': None
                 }
             )
 
