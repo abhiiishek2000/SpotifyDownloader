@@ -1,4 +1,3 @@
-# app.py
 import requests
 from bs4 import BeautifulSoup
 from datetime import timedelta
@@ -7,7 +6,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response
 from ytmusicapi import YTMusic
 import logging
-from youtube_music_downloader import YouTubeMusicDownloader
+import subprocess
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -40,6 +39,53 @@ def get_track_info(url):
         return None
 
 
+def get_stream_url(video_id):
+    """Get audio stream URL from video ID using YTMusic."""
+    try:
+        ytmusic = YTMusic()
+        # Get watch playlist data which contains URLs
+        data = ytmusic.get_watch_playlist(videoId=video_id)
+        if not data or 'tracks' not in data:
+            raise Exception("Could not get video data")
+
+        # Get track details
+        track = next((t for t in data['tracks'] if t['videoId'] == video_id), None)
+        if not track:
+            raise Exception("Track not found in playlist")
+
+        # Return the best audio URL
+        return f"https://music.youtube.com/watch?v={video_id}"
+
+    except Exception as e:
+        raise Exception(f"Failed to get stream URL: {str(e)}")
+
+
+def download_song(video_id, output_path):
+    """Download and convert song from YouTube Music."""
+    stream_url = get_stream_url(video_id)
+
+    # Download audio stream
+    response = requests.get(stream_url, stream=True)
+    temp_audio = output_path.with_suffix('.m4a')
+
+    with open(temp_audio, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+
+    # Convert to MP3 using ffmpeg
+    output_mp3 = output_path.with_suffix('.mp3')
+    subprocess.run([
+        'ffmpeg', '-i', str(temp_audio),
+        '-acodec', 'libmp3lame', '-ab', '320k',
+        str(output_mp3)
+    ], check=True)
+
+    # Cleanup temp file
+    temp_audio.unlink()
+    return output_mp3
+
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -57,12 +103,11 @@ def download():
 
             video_id = search_results[0]['videoId']
 
-            # Download using custom downloader
-            downloader = YouTubeMusicDownloader()
+            # Download the song
             output_path = Path(temp_dir) / f"{title} - {artist}"
 
             try:
-                mp3_file = downloader.download_song(video_id, output_path)
+                mp3_file = download_song(video_id, output_path)
 
                 def generate():
                     with open(mp3_file, 'rb') as f:
