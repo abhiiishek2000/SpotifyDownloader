@@ -62,28 +62,47 @@ def get_stream_url(video_id):
 
 def download_song(video_id, output_path):
     """Download and convert song from YouTube Music."""
-    stream_url = get_stream_url(video_id)
+    try:
+        stream_url = get_stream_url(video_id)
 
-    # Download audio stream
-    response = requests.get(stream_url, stream=True)
-    temp_audio = output_path.with_suffix('.m4a')
+        # Download audio stream
+        response = requests.get(stream_url, stream=True)
+        temp_audio = output_path.with_suffix('.m4a')
 
-    with open(temp_audio, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
+        # Write the stream to a temporary file
+        with open(temp_audio, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
 
-    # Convert to MP3 using ffmpeg
-    output_mp3 = output_path.with_suffix('.mp3')
-    subprocess.run([
-        'ffmpeg', '-i', str(temp_audio),
-        '-acodec', 'libmp3lame', '-ab', '320k',
-        str(output_mp3)
-    ], check=True)
+        # Check if the file exists and is non-empty
+        if not temp_audio.exists() or temp_audio.stat().st_size == 0:
+            raise Exception("Downloaded file is invalid or empty.")
 
-    # Cleanup temp file
-    temp_audio.unlink()
-    return output_mp3
+        # Validate the audio file with ffmpeg
+        validation_process = subprocess.run(
+            ['ffmpeg', '-v', 'error', '-i', str(temp_audio), '-f', 'null', '-'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if validation_process.returncode != 0:
+            raise Exception(f"Invalid audio file: {validation_process.stderr.decode().strip()}")
+
+        # Convert to MP3 using ffmpeg
+        output_mp3 = output_path.with_suffix('.mp3')
+        subprocess.run([
+            'ffmpeg', '-i', str(temp_audio),
+            '-acodec', 'libmp3lame', '-ab', '320k',
+            str(output_mp3)
+        ], check=True)
+
+        # Cleanup temp file
+        temp_audio.unlink()
+        return output_mp3
+
+    except Exception as e:
+        app.logger.error(f"Error in download_song: {str(e)}")
+        raise
+
 
 
 @app.route('/download', methods=['POST'])
