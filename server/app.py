@@ -126,7 +126,8 @@ def download_song(video_id, output_path):
         raise
 
 
-import io
+
+
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -144,7 +145,9 @@ def download():
 
         video_id = search_results[0]['videoId']
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a temporary directory that won't be auto-deleted
+        temp_dir = tempfile.mkdtemp()
+        try:
             output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
 
             # Download command
@@ -166,21 +169,27 @@ def download():
             # Run download
             subprocess.run(command, check=True)
 
-            if output_path.exists():
-                def generate():
-                    with open(output_path, 'rb') as f:
-                        while True:
-                            chunk = f.read(8192)
-                            if not chunk:
-                                break
-                            yield chunk
+            if not output_path.exists():
+                raise Exception("File not downloaded correctly")
 
-                response = Response(generate(), mimetype='audio/mpeg')
-                response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
-                response.headers['Content-Length'] = str(output_path.stat().st_size)
-                return response
+            # Read file into memory and send
+            with open(output_path, 'rb') as f:
+                data = f.read()
 
-            return jsonify({'error': 'Failed to download file'}), 500
+            # Clean up
+            shutil.rmtree(temp_dir)
+
+            # Create response
+            response = make_response(data)
+            response.headers['Content-Type'] = 'audio/mpeg'
+            response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
+            response.headers['Content-Length'] = str(len(data))
+            return response
+
+        except Exception as e:
+            # Clean up on error
+            shutil.rmtree(temp_dir)
+            raise
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
