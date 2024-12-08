@@ -144,59 +144,65 @@ def download():
         stream_url = f"https://music.youtube.com/watch?v={video_id}"
 
         def generate():
-            process = subprocess.Popen([
+            # First download the audio
+            yt_process = subprocess.Popen([
                 'yt-dlp',
                 '--format', 'bestaudio',
-                '--extract-audio',
-                '--audio-format', 'mp3',
-                '--audio-quality', '320k',
                 '--cookies', '/var/www/spotifysave/cookies.txt',
                 '--force-ipv4',
                 '--no-check-certificate',
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36',
-                '--add-header', 'Accept:*/*',
-                '--add-header', 'Origin:https://www.youtube.com',
-                '--add-header', 'Referer:https://www.youtube.com',
                 '--no-warnings',
-                '--no-playlist',
-                '-o', '-',  # Output to stdout
+                '-o', '-',
                 stream_url
             ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+            # Then pipe it through ffmpeg for conversion
             ffmpeg_process = subprocess.Popen([
                 'ffmpeg',
-                '-i', 'pipe:0',  # Read from stdin
+                '-i', 'pipe:0',
+                '-f', 'mp3',
                 '-acodec', 'libmp3lame',
                 '-ab', '320k',
-                '-f', 'mp3',  # Force MP3 format
-                'pipe:1'  # Output to stdout
-            ], stdin=process.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                '-ar', '44100',
+                '-ac', '2',
+                'pipe:1'
+            ], stdin=yt_process.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            # Close yt-dlp stdout pipe in parent process
-            process.stdout.close()
+            # Close yt-dlp stdout in parent process
+            yt_process.stdout.close()
 
-            # Read and yield the converted MP3 data
+            # Read the converted audio data
             while True:
-                chunk = ffmpeg_process.stdout.read(8192)
-                if not chunk:
+                data = ffmpeg_process.stdout.read(8192)
+                if not data:
                     break
-                yield chunk
+                yield data
 
-            # Clean up processes
+            # Check for any errors
+            ffmpeg_error = ffmpeg_process.stderr.read()
+            yt_error = yt_process.stderr.read()
+
+            if ffmpeg_error:
+                app.logger.error(f"FFmpeg error: {ffmpeg_error.decode()}")
+            if yt_error:
+                app.logger.error(f"yt-dlp error: {yt_error.decode()}")
+
+            # Wait for processes to complete
             ffmpeg_process.wait()
-            process.wait()
+            yt_process.wait()
 
-        response = Response(
+        return Response(
             generate(),
-            mimetype='audio/mpeg'
+            mimetype='audio/mpeg',
+            headers={
+                'Content-Disposition': f'attachment; filename="{title} - {artist}.mp3"',
+                'Cache-Control': 'no-cache'
+            }
         )
-        response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
-        return response
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
