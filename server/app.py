@@ -42,29 +42,27 @@ def get_track_info(url):
 def get_stream_url(video_id):
     """Get audio stream URL from video ID using YTMusic."""
     try:
-        ytmusic = YTMusic()
-        # Get basic details first
-        data = ytmusic.get_watch_playlist(videoId=video_id, limit=1)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:68.0) Gecko/68.0 Firefox/96.0',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',  # Public API key
+            'Origin': 'https://music.youtube.com'
+        }
+
+        ytmusic = YTMusic(headers_raw=headers)
+
+        # Get playback data with player params
+        data = ytmusic.get_watch_playlist(videoId=video_id)
 
         if not data or 'tracks' not in data:
             raise Exception("Could not get video data")
 
-        track = data['tracks'][0]
+        # Get streaming URL
+        stream_url = f"https://www.youtube.com/watch?v={video_id}"
 
-        # Get playback URL using endpoint
-        endpoint = "https://music.youtube.com/watch?v=" + video_id
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': '*/*',
-            'Origin': 'https://music.youtube.com',
-            'Referer': 'https://music.youtube.com/'
-        }
-
-        response = requests.get(endpoint, headers=headers)
-        if response.status_code != 200:
-            raise Exception(f"Failed to get video page: {response.status_code}")
-
-        return endpoint  # Return the YouTube Music URL directly
+        return stream_url
 
     except Exception as e:
         raise Exception(f"Failed to get stream URL: {str(e)}")
@@ -76,7 +74,6 @@ def download_song(video_id, output_path):
         stream_url = get_stream_url(video_id)
         temp_audio = output_path.with_suffix('.m4a')
 
-        # Use youtube-dl with cookies and other options
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
@@ -85,11 +82,12 @@ def download_song(video_id, output_path):
             '--audio-quality', '0',
             '--no-check-certificate',
             '--force-ipv4',
-            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add cookies file
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            '--user-agent', 'Mozilla/5.0 (Android 12; Mobile; rv:68.0) Gecko/68.0 Firefox/96.0',
             '--add-header', 'Accept:*/*',
             '--add-header', 'Origin:https://music.youtube.com',
-            '--no-check-formats',
+            '--no-warnings',
+            '--extract-flat',
+            '--no-playlist',
             '-o', str(temp_audio),
             stream_url
         ]
