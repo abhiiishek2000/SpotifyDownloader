@@ -43,18 +43,33 @@ def get_stream_url(video_id):
     """Get audio stream URL from video ID using YTMusic."""
     try:
         ytmusic = YTMusic()
-        # Get watch playlist data which contains URLs
-        data = ytmusic.get_watch_playlist(videoId=video_id)
-        if not data or 'tracks' not in data:
-            raise Exception("Could not get video data")
+        # Get detailed track info
+        track_info = ytmusic.get_song(video_id)
 
-        # Get track details
-        track = next((t for t in data['tracks'] if t['videoId'] == video_id), None)
-        if not track:
-            raise Exception("Track not found in playlist")
+        # Construct streaming URL with required parameters
+        params = {
+            'v': video_id,
+            'alt': 'media',
+            'key': 'AIzaSyCSrmcJ3mBG2Z7kYH0GjMH5Kpxunq-bLj0'  # Optional, if needed
+        }
 
-        # Return the best audio URL
-        return f"https://music.youtube.com/watch?v={video_id}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': '*/*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Range': 'bytes=0-',
+            'Origin': 'https://music.youtube.com'
+        }
+
+        # Use YouTube API endpoint for actual stream
+        stream_url = f"https://youtube.googleapis.com/v/{video_id}"
+        response = requests.head(stream_url, params=params, headers=headers)
+
+        if response.status_code == 200:
+            return stream_url + '?' + '&'.join(f'{k}={v}' for k, v in params.items())
+        else:
+            raise Exception(f"Failed to get valid stream URL: Status {response.status_code}")
 
     except Exception as e:
         raise Exception(f"Failed to get stream URL: {str(e)}")
@@ -64,34 +79,29 @@ def download_song(video_id, output_path):
     """Download and convert song from YouTube Music."""
     try:
         stream_url = get_stream_url(video_id)
-
-        # Download audio stream
-        response = requests.get(stream_url, stream=True)
         temp_audio = output_path.with_suffix('.m4a')
 
-        # Write the stream to a temporary file
-        with open(temp_audio, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        # Use ffmpeg directly to download and convert
+        download_process = subprocess.run([
+            'ffmpeg',
+            '-y',  # Overwrite output files
+            '-http_seekable', '0',
+            '-i', stream_url,
+            '-c:a', 'copy',
+            str(temp_audio)
+        ], check=True, capture_output=True)
 
-        # Check if the file exists and is non-empty
         if not temp_audio.exists() or temp_audio.stat().st_size == 0:
             raise Exception("Downloaded file is invalid or empty.")
 
-        # Validate the audio file with ffmpeg
-        validation_process = subprocess.run(
-            ['ffmpeg', '-v', 'error', '-i', str(temp_audio), '-f', 'null', '-'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        if validation_process.returncode != 0:
-            raise Exception(f"Invalid audio file: {validation_process.stderr.decode().strip()}")
-
-        # Convert to MP3 using ffmpeg
+        # Convert to MP3
         output_mp3 = output_path.with_suffix('.mp3')
         subprocess.run([
-            'ffmpeg', '-i', str(temp_audio),
-            '-acodec', 'libmp3lame', '-ab', '320k',
+            'ffmpeg',
+            '-y',
+            '-i', str(temp_audio),
+            '-acodec', 'libmp3lame',
+            '-ab', '320k',
             str(output_mp3)
         ], check=True)
 
@@ -99,6 +109,9 @@ def download_song(video_id, output_path):
         temp_audio.unlink()
         return output_mp3
 
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"FFmpeg error: {e.stderr.decode()}")
+        raise Exception("Error processing audio file")
     except Exception as e:
         app.logger.error(f"Error in download_song: {str(e)}")
         raise
