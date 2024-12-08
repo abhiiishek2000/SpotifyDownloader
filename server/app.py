@@ -76,16 +76,20 @@ def download_song(video_id, output_path):
         stream_url = get_stream_url(video_id)
         temp_audio = output_path.with_suffix('.m4a')
 
-        # Use youtube-dl with verbose error output
+        # Use youtube-dl with cookies and other options
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
             '--extract-audio',
             '--audio-format', 'm4a',
             '--audio-quality', '0',
-            '--no-check-certificate',  # Add this
-            '--force-ipv4',  # Add this
-            '--verbose',  # Add this for debugging
+            '--no-check-certificate',
+            '--force-ipv4',
+            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add cookies file
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            '--add-header', 'Accept:*/*',
+            '--add-header', 'Origin:https://music.youtube.com',
+            '--no-check-formats',
             '-o', str(temp_audio),
             stream_url
         ]
@@ -93,7 +97,7 @@ def download_song(video_id, output_path):
         try:
             result = subprocess.run(command, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            app.logger.error(f"yt-dlp error output: {e.stderr}")  # Log detailed error
+            app.logger.error(f"yt-dlp error output: {e.stderr}")
             raise Exception(f"yt-dlp error: {e.stderr}")
 
         if not temp_audio.exists() or temp_audio.stat().st_size == 0:
@@ -111,7 +115,6 @@ def download_song(video_id, output_path):
 
         subprocess.run(convert_command, check=True, capture_output=True)
 
-        # Cleanup temp file
         if temp_audio.exists():
             temp_audio.unlink()
 
@@ -120,7 +123,6 @@ def download_song(video_id, output_path):
     except Exception as e:
         app.logger.error(f"Error in download_song: {str(e)}")
         raise
-
 
 
 @app.route('/download', methods=['POST'])
