@@ -151,6 +151,7 @@ def download():
             '--extract-audio',
             '--audio-format', 'mp3',
             '--audio-quality', '320k',
+            '--cookies', '/var/www/spotifysave/cookies_yt_1.txt',
             '--no-warnings',
             '--no-playlist',
             '-o', '-',  # Output to stdout
