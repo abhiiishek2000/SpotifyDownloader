@@ -112,17 +112,22 @@ downloadTrack.addEventListener('click', async () => {
 
     downloadTrack.style.display = 'none';
     progressBar.style.display = 'block';
+
+    // Start with initial state
     progressElement.style.width = '0%';
-    progressText.textContent = 'Processing...';
+    progressText.textContent = 'Searching track...';
 
     try {
+        // Simulate search progress
+        progressElement.style.width = '20%';
+
         const response = await fetch('/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: currentTrackInfo.title,
                 artist: currentTrackInfo.artist,
-                url: currentTrackInfo.spotifyUrl  // Use the stored Spotify URL
+                url: currentTrackInfo.spotifyUrl
             })
         });
 
@@ -131,27 +136,67 @@ downloadTrack.addEventListener('click', async () => {
             throw new Error(error.error || 'Download failed');
         }
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        // Show downloading progress
+        progressElement.style.width = '40%';
+        progressText.textContent = 'Downloading audio...';
 
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        // Start reading the blob
+        const reader = new Response(response.body).body.getReader();
+        const contentLength = +response.headers.get('Content-Length');
 
+        let receivedLength = 0;
+        const chunks = [];
+
+        while(true) {
+            const {done, value} = await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            chunks.push(value);
+            receivedLength += value.length;
+
+            // Calculate and show download progress
+            const percentage = (receivedLength / contentLength) * 100;
+            progressElement.style.width = `${40 + (percentage * 0.4)}%`;
+            progressText.textContent = 'Converting audio...';
+        }
+
+        // Combine chunks into blob
+        progressElement.style.width = '90%';
+        progressText.textContent = 'Finalizing...';
+
+        const blob = new Blob(chunks, {type: 'audio/mpeg'});
+
+        // Create save button
+        const saveButton = document.createElement('a');
+        saveButton.href = URL.createObjectURL(blob);
+        saveButton.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
+        saveButton.className = 'download-btn mt-4';
+        saveButton.textContent = 'Save MP3';
+        saveButton.style.display = 'block';
+        saveButton.style.marginTop = '1rem';
+
+        // Show complete state
         progressElement.style.width = '100%';
-        progressText.textContent = 'Download complete!';
-        showSuccess('Download complete!');
+        progressText.textContent = 'Ready to save!';
 
+        // Replace progress bar with save button after a short delay
         setTimeout(() => {
             progressBar.style.display = 'none';
+            downloadTrack.parentNode.insertBefore(saveButton, progressBar);
+        }, 1000);
+
+        // Clean up after save
+        saveButton.addEventListener('click', () => {
+            URL.revokeObjectURL(saveButton.href);
+            saveButton.remove();
+            showSuccess('Download complete!');
             downloadTrack.style.display = 'block';
             downloadTrack.textContent = 'Downloaded';
             downloadTrack.disabled = true;
-        }, 2000);
+        });
 
     } catch (error) {
         showError('Download failed: ' + error.message);
