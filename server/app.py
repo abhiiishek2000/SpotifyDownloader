@@ -43,15 +43,28 @@ def get_stream_url(video_id):
     """Get audio stream URL from video ID using YTMusic."""
     try:
         ytmusic = YTMusic()
-        data = ytmusic.get_watch_playlist(videoId=video_id)
+        # Get basic details first
+        data = ytmusic.get_watch_playlist(videoId=video_id, limit=1)
 
         if not data or 'tracks' not in data:
             raise Exception("Could not get video data")
 
-        # Use regular YouTube URL for better compatibility
-        stream_url = f"https://youtu.be/{video_id}"
+        track = data['tracks'][0]
 
-        return stream_url
+        # Get playback URL using endpoint
+        endpoint = "https://music.youtube.com/watch?v=" + video_id
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': '*/*',
+            'Origin': 'https://music.youtube.com',
+            'Referer': 'https://music.youtube.com/'
+        }
+
+        response = requests.get(endpoint, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"Failed to get video page: {response.status_code}")
+
+        return endpoint  # Return the YouTube Music URL directly
 
     except Exception as e:
         raise Exception(f"Failed to get stream URL: {str(e)}")
@@ -63,6 +76,7 @@ def download_song(video_id, output_path):
         stream_url = get_stream_url(video_id)
         temp_audio = output_path.with_suffix('.m4a')
 
+        # Use youtube-dl with cookies and other options
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
@@ -71,14 +85,11 @@ def download_song(video_id, output_path):
             '--audio-quality', '0',
             '--no-check-certificate',
             '--force-ipv4',
-            '--user-agent', 'Mozilla/5.0 (Android 12; Mobile; rv:68.0) Gecko/68.0 Firefox/96.0',
+            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add cookies file
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             '--add-header', 'Accept:*/*',
-            '--add-header', 'Origin:https://www.youtube.com',
-            '--add-header', 'Referer:https://www.youtube.com',
-            '--no-warnings',
-            '--geo-bypass',
-            '--no-playlist',
-            '--extractor-args', 'youtube:player_client=android',
+            '--add-header', 'Origin:https://music.youtube.com',
+            '--no-check-formats',
             '-o', str(temp_audio),
             stream_url
         ]
