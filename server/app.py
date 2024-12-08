@@ -127,9 +127,6 @@ def download_song(video_id, output_path):
         raise
 
 
-
-
-
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -137,7 +134,6 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        # Search for the song
         ytmusic = YTMusic()
         search_results = ytmusic.search(f"{title} {artist}", filter="songs")
 
@@ -146,51 +142,47 @@ def download():
 
         video_id = search_results[0]['videoId']
 
-        # Create a temporary directory that won't be auto-deleted
-        temp_dir = tempfile.mkdtemp()
-        try:
-            output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
+        # Stream directly without temporary file
+        command = [
+            'yt-dlp',
+            '--format', 'bestaudio',
+            '--extract-audio',
+            '--audio-format', 'mp3',
+            '--audio-quality', '320k',
+            '--cookies', '/var/www/spotifysave/cookies.txt',
+            '--no-warnings',
+            '--no-playlist',
+            '-o', '-',  # Output to stdout
+            f"https://music.youtube.com/watch?v={video_id}"
+        ]
 
-            # Download command
-            command = [
-                'yt-dlp',
-                '--format', 'bestaudio',
-                '--extract-audio',
-                '--audio-format', 'mp3',
-                '--audio-quality', '320k',
-                '--no-check-certificate',
-                '--force-ipv4',
-                '--cookies', '/var/www/spotifysave/cookies.txt',
-                '--no-warnings',
-                '--no-playlist',
-                '-o', str(output_path),
-                f"https://music.youtube.com/watch?v={video_id}"
-            ]
+        def generate():
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=8192
+            )
 
-            # Run download
-            subprocess.run(command, check=True)
+            while True:
+                chunk = process.stdout.read(8192)
+                if not chunk:
+                    break
+                yield chunk
 
-            if not output_path.exists():
-                raise Exception("File not downloaded correctly")
+            process.stdout.close()
+            process.wait()
 
-            # Read file into memory and send
-            with open(output_path, 'rb') as f:
-                data = f.read()
+        response = Response(
+            generate(),
+            mimetype='audio/mpeg',
+            headers={
+                'Content-Disposition': f'attachment; filename="{title} - {artist}.mp3"',
+                'Cache-Control': 'no-cache'
+            }
+        )
 
-            # Clean up
-            shutil.rmtree(temp_dir)
-
-            # Create response
-            response = make_response(data)
-            response.headers['Content-Type'] = 'audio/mpeg'
-            response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
-            response.headers['Content-Length'] = str(len(data))
-            return response
-
-        except Exception as e:
-            # Clean up on error
-            shutil.rmtree(temp_dir)
-            raise
+        return response
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
