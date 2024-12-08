@@ -144,7 +144,7 @@ def download():
             output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
 
             # First verify the cookie file exists and has content
-            cookie_path = '/var/www/spotifysave/cookies.txt'
+            cookie_path = '/var/www/spotifysave/cookies_yt.txt'
             if not Path(cookie_path).exists():
                 app.logger.error("Cookie file not found")
                 return jsonify({'error': 'Authentication error'}), 401
