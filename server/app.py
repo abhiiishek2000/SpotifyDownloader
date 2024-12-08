@@ -88,7 +88,7 @@ def download():
                 'audio_providers': ['youtube-music', 'youtube'],
                 'filter_results': True,
                 'yt_dlp_args': '--no-check-certificate --force-ipv4',
-                'cookies': '/var/www/spotifysave/youtube.txt',
+                'cookies': '/var/www/spotifysave/cookies.txt',
                 'audio_quality': '320k',
                 'headless': True,
                 'output': '-'  # Output to stdout
