@@ -4,6 +4,7 @@ from datetime import timedelta
 import tempfile
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response
+from spotdl import Spotdl
 from ytmusicapi import YTMusic
 import logging
 import subprocess
@@ -70,62 +71,6 @@ def get_stream_url(video_id):
         raise Exception(f"Failed to get stream URL: {str(e)}")
 
 
-def download_song(video_id, output_path):
-    """Download and convert song from YouTube Music."""
-    try:
-        stream_url = get_stream_url(video_id)
-        temp_audio = output_path.with_suffix('.m4a')
-
-        command = [
-            'yt-dlp',
-            '--format', 'bestaudio',
-            '--extract-audio',
-            '--audio-format', 'm4a',
-            '--audio-quality', '0',
-            '--no-check-certificate',
-            '--force-ipv4',
-            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add our generated cookies
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36',
-            '--add-header', 'Accept:*/*',
-            '--add-header', 'Origin:https://www.youtube.com',
-            '--add-header', 'Referer:https://www.youtube.com',
-            '--no-warnings',
-            '--no-playlist',
-            '-o', str(temp_audio),
-            stream_url
-        ]
-
-        try:
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            app.logger.error(f"yt-dlp error output: {e.stderr}")
-            raise Exception(f"yt-dlp error: {e.stderr}")
-
-        if not temp_audio.exists() or temp_audio.stat().st_size == 0:
-            raise Exception("Downloaded file is invalid or empty")
-
-        # Convert to MP3
-        output_mp3 = output_path.with_suffix('.mp3')
-        convert_command = [
-            'ffmpeg',
-            '-i', str(temp_audio),
-            '-acodec', 'libmp3lame',
-            '-ab', '320k',
-            str(output_mp3)
-        ]
-
-        subprocess.run(convert_command, check=True, capture_output=True)
-
-        if temp_audio.exists():
-            temp_audio.unlink()
-
-        return output_mp3
-
-    except Exception as e:
-        app.logger.error(f"Error in download_song: {str(e)}")
-        raise
-
-
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -133,37 +78,42 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Search using YTMusic
-            ytmusic = YTMusic()
-            search_results = ytmusic.search(f"{title} {artist}", filter="songs")
+        # Initialize SpotDL with our working settings
+        spotdl = Spotdl(
+            client_id='41c1c1a4546c413498d522b0f0508670',
+            client_secret='c36781c6845448d3b97a1d30403d8bbe',
+            downloader_settings={
+                'format': 'mp3',
+                'ffmpeg': '/usr/bin/ffmpeg',
+                'audio_providers': ['youtube-music', 'youtube'],
+                'filter_results': True,
+                'yt_dlp_args': '--no-check-certificate --force-ipv4',
+                'cookies': '/var/www/spotifysave/youtube.txt',
+                'audio_quality': '320k',
+                'headless': True,
+                'output': '-'  # Output to stdout
+            }
+        )
 
-            if not search_results:
-                return jsonify({'error': 'Song not found'}), 404
+        app.logger.debug(f"Searching for: {spotify_url}")
+        songs = spotdl.search([spotify_url])
 
-            video_id = search_results[0]['videoId']
+        if not songs:
+            return jsonify({'error': 'Song not found'}), 404
 
-            # Download the song
-            output_path = Path(temp_dir) / f"{title} - {artist}"
+        app.logger.debug(f"Found {len(songs)} songs")
+        song, audio_stream = spotdl.download(songs[0])
 
-            try:
-                mp3_file = download_song(video_id, output_path)
+        def generate():
+            for chunk in audio_stream:
+                yield chunk
 
-                def generate():
-                    with open(mp3_file, 'rb') as f:
-                        while True:
-                            chunk = f.read(8192)
-                            if not chunk:
-                                break
-                            yield chunk
-
-                response = Response(generate(), mimetype='audio/mpeg')
-                response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
-                return response
-
-            except Exception as e:
-                app.logger.error(f"Download error: {str(e)}")
-                return jsonify({'error': 'Failed to download audio'}), 500
+        response = Response(
+            generate(),
+            mimetype='audio/mpeg'
+        )
+        response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
+        return response
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
