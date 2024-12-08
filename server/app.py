@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, jsonify, Response, make_respo
 from ytmusicapi import YTMusic
 import logging
 import subprocess
+import shutil
 
 logging.basicConfig(level=logging.DEBUG)
 
