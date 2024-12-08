@@ -110,16 +110,12 @@ downloadTrack.addEventListener('click', async () => {
         return;
     }
 
-    // UI Updates: Disable download button and show progress bar
     downloadTrack.style.display = 'none';
     progressBar.style.display = 'block';
     progressElement.style.width = '0%';
-    progressText.textContent = 'Searching track...';
+    progressText.textContent = 'Processing...';
 
     try {
-        progressElement.style.width = '20%'; // Update progress
-
-        // Request the track download
         const response = await fetch('/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -135,71 +131,66 @@ downloadTrack.addEventListener('click', async () => {
             throw new Error(error.error || 'Download failed');
         }
 
-        progressElement.style.width = '40%';
-        progressText.textContent = 'Downloading audio...';
+        // Get the filename from the Content-Disposition header
+        const disposition = response.headers.get('Content-Disposition');
+        const filename = disposition ?
+            disposition.split('filename=')[1].replace(/"/g, '') :
+            `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
 
-        // Reading response as a stream
+        // Get total size for progress calculation
+        const totalSize = parseInt(response.headers.get('Content-Length'), 10);
+
+        // Stream the response
         const reader = response.body.getReader();
-        const contentLength = parseInt(response.headers.get('Content-Length'), 10);
-        if (isNaN(contentLength)) {
-            throw new Error('Missing Content-Length header.');
-        }
-
-        let receivedLength = 0;
         const chunks = [];
+        let receivedLength = 0;
 
         while (true) {
             const { done, value } = await reader.read();
+
             if (done) break;
 
             chunks.push(value);
             receivedLength += value.length;
 
             // Update progress
-            const percentage = (receivedLength / contentLength) * 100;
-            progressElement.style.width = `${40 + (percentage * 0.4)}%`;
-            progressText.textContent = `Downloading: ${Math.floor(percentage)}%`;
+            const progress = (receivedLength / totalSize) * 100;
+            progressElement.style.width = `${progress}%`;
+            progressText.textContent = `Downloading... ${Math.round(progress)}%`;
         }
 
-        progressElement.style.width = '90%';
-        progressText.textContent = 'Finalizing...';
-
-        // Combine chunks into a Blob
+        // Create blob and download
         const blob = new Blob(chunks, { type: 'audio/mpeg' });
-        if (!blob.size) throw new Error('Failed to create Blob.');
+        const url = window.URL.createObjectURL(blob);
 
-        // Create and configure the save button
-        const saveButton = document.createElement('a');
-        saveButton.href = URL.createObjectURL(blob);
-        saveButton.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
-        saveButton.className = 'download-btn mt-4';
-        saveButton.textContent = 'Save MP3';
-        saveButton.style.display = 'block';
-        saveButton.style.marginTop = '1rem';
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+
+        // Trigger download
+        a.click();
+
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
 
         progressElement.style.width = '100%';
-        progressText.textContent = 'Ready to save!';
+        progressText.textContent = 'Download complete!';
+        showSuccess('Download complete!');
+
         setTimeout(() => {
             progressBar.style.display = 'none';
-            downloadTrack.parentNode.insertBefore(saveButton, progressBar);
-        }, 1000);
-
-        // Clean up after download
-        saveButton.addEventListener('click', () => {
-            URL.revokeObjectURL(saveButton.href);
-            saveButton.remove();
-            showSuccess('Download complete!');
             downloadTrack.style.display = 'block';
             downloadTrack.textContent = 'Downloaded';
             downloadTrack.disabled = true;
-        });
+        }, 2000);
 
     } catch (error) {
-        // Error handling
         showError('Download failed: ' + error.message);
         progressBar.style.display = 'none';
         downloadTrack.style.display = 'block';
         downloadTrack.disabled = false;
     }
 });
-

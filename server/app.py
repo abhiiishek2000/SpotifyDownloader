@@ -135,7 +135,7 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        # Search for the song on YouTube Music
+        # Search for the song
         ytmusic = YTMusic()
         search_results = ytmusic.search(f"{title} {artist}", filter="songs")
 
@@ -144,43 +144,43 @@ def download():
 
         video_id = search_results[0]['videoId']
 
-        # Use yt-dlp to download directly to a buffer
-        command = [
-            'yt-dlp',
-            '--format', 'bestaudio',
-            '--extract-audio',
-            '--audio-format', 'mp3',
-            '--audio-quality', '320k',
-            '--cookies', '/var/www/spotifysave/cookies_yt_1.txt',
-            '--no-warnings',
-            '--no-playlist',
-            '-o', '-',  # Output to stdout
-            f"https://music.youtube.com/watch?v={video_id}"
-        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
 
-        # Create an in-memory buffer to store the audio data
-        buffer = io.BytesIO()
+            # Download command
+            command = [
+                'yt-dlp',
+                '--format', 'bestaudio',
+                '--extract-audio',
+                '--audio-format', 'mp3',
+                '--audio-quality', '320k',
+                '--no-check-certificate',
+                '--force-ipv4',
+                '--cookies', '/var/www/spotifysave/cookies.txt',
+                '--no-warnings',
+                '--no-playlist',
+                '-o', str(output_path),
+                f"https://music.youtube.com/watch?v={video_id}"
+            ]
 
-        # Run the yt-dlp command and capture the output
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
+            # Run download
+            subprocess.run(command, check=True)
 
-        if process.returncode != 0:
-            app.logger.error(f"yt-dlp error: {stderr.decode()}")
-            return jsonify({'error': 'Failed to download song'}), 500
+            if output_path.exists():
+                def generate():
+                    with open(output_path, 'rb') as f:
+                        while True:
+                            chunk = f.read(8192)
+                            if not chunk:
+                                break
+                            yield chunk
 
-        # Write stdout to the buffer
-        buffer.write(stdout)
-        buffer.seek(0)  # Reset buffer pointer to the beginning
+                response = Response(generate(), mimetype='audio/mpeg')
+                response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
+                response.headers['Content-Length'] = str(output_path.stat().st_size)
+                return response
 
-        # Send the file to the user
-        filename = f"{title} - {artist}.mp3"
-        return send_file(
-            buffer,
-            mimetype='audio/mpeg',
-            as_attachment=True,
-            download_name=filename
-        )
+            return jsonify({'error': 'Failed to download file'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
