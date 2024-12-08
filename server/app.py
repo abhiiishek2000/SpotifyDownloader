@@ -76,34 +76,45 @@ def download_song(video_id, output_path):
         stream_url = get_stream_url(video_id)
         temp_audio = output_path.with_suffix('.m4a')
 
-        # Use youtube-dl to download
+        # Use youtube-dl with verbose error output
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
             '--extract-audio',
             '--audio-format', 'm4a',
             '--audio-quality', '0',
+            '--no-check-certificate',  # Add this
+            '--force-ipv4',  # Add this
+            '--verbose',  # Add this for debugging
             '-o', str(temp_audio),
             stream_url
         ]
 
-        subprocess.run(command, check=True, capture_output=True)
+        try:
+            result = subprocess.run(command, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            app.logger.error(f"yt-dlp error output: {e.stderr}")  # Log detailed error
+            raise Exception(f"yt-dlp error: {e.stderr}")
 
         if not temp_audio.exists() or temp_audio.stat().st_size == 0:
             raise Exception("Downloaded file is invalid or empty.")
 
         # Convert to MP3
         output_mp3 = output_path.with_suffix('.mp3')
-        subprocess.run([
+        convert_command = [
             'ffmpeg',
             '-i', str(temp_audio),
             '-acodec', 'libmp3lame',
             '-ab', '320k',
             str(output_mp3)
-        ], check=True)
+        ]
+
+        subprocess.run(convert_command, check=True, capture_output=True)
 
         # Cleanup temp file
-        temp_audio.unlink()
+        if temp_audio.exists():
+            temp_audio.unlink()
+
         return output_mp3
 
     except Exception as e:
