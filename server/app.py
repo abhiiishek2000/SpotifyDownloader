@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 import tempfile
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response, make_response
+from flask import Flask, render_template, request, jsonify, Response, make_response, send_file
 from ytmusicapi import YTMusic
 import logging
 import subprocess
@@ -133,64 +133,44 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            ytmusic = YTMusic()
-            search_results = ytmusic.search(f"{title} {artist}", filter="songs")
+        # Create a static download directory if it doesn't exist
+        download_dir = Path('/var/www/spotifysave/downloads')
+        download_dir.mkdir(exist_ok=True)
 
-            if not search_results:
-                return jsonify({'error': 'Song not found'}), 404
+        ytmusic = YTMusic()
+        search_results = ytmusic.search(f"{title} {artist}", filter="songs")
 
-            video_id = search_results[0]['videoId']
-            output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
+        if not search_results:
+            return jsonify({'error': 'Song not found'}), 404
 
-            # First verify the cookie file exists and has content
-            cookie_path = '/var/www/spotifysave/cookies_yt.txt'
-            if not Path(cookie_path).exists():
-                app.logger.error("Cookie file not found")
-                return jsonify({'error': 'Authentication error'}), 401
+        video_id = search_results[0]['videoId']
+        output_path = download_dir / f"{title} - {artist}.mp3"
 
-            # Print cookie file content for debugging
-            with open(cookie_path, 'r') as f:
-                app.logger.debug(f"Cookie file content: {f.read()}")
+        command = [
+            'yt-dlp',
+            '--format', 'bestaudio',
+            '--extract-audio',
+            '--audio-format', 'mp3',
+            '--audio-quality', '320k',
+            '--cookies', '/var/www/spotifysave/cookies_yt.txt',
+            '--no-warnings',
+            '--no-playlist',
+            '-o', str(output_path),
+            f"https://music.youtube.com/watch?v={video_id}"
+        ]
 
-            command = [
-                'yt-dlp',
-                '--format', 'bestaudio',
-                '--extract-audio',
-                '--audio-format', 'mp3',
-                '--audio-quality', '320k',
-                f'--cookies={cookie_path}',  # Changed cookies parameter format
-                '--force-ipv4',
-                '--no-check-certificate',
-                '--no-warnings',
-                '--no-playlist',
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-                '--add-header', 'Accept:*/*',
-                '--add-header', 'Origin:https://music.youtube.com',
-                '--add-header', 'Referer:https://music.youtube.com/',
-                '-o', str(output_path),
-                f"https://music.youtube.com/watch?v={video_id}"
-            ]
+        # Run download command
+        subprocess.run(command, check=True)
 
-            try:
-                # Run command with full output capture
-                result = subprocess.run(command, capture_output=True, text=True, check=True)
-                app.logger.debug(f"yt-dlp stdout: {result.stdout}")
-                app.logger.debug(f"yt-dlp stderr: {result.stderr}")
-            except subprocess.CalledProcessError as e:
-                app.logger.error(f"yt-dlp error: {e.stderr}")
-                raise Exception(f"yt-dlp error: {e.stderr}")
+        if output_path.exists():
+            return send_file(
+                output_path,
+                mimetype='audio/mpeg',
+                as_attachment=True,
+                download_name=f"{title} - {artist}.mp3"
+            )
 
-            if output_path.exists():
-                with open(output_path, 'rb') as f:
-                    file_data = f.read()
-
-                response = make_response(file_data)
-                response.headers['Content-Type'] = 'audio/mpeg'
-                response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
-                return response
-
-            return jsonify({'error': 'Download failed'}), 500
+        return jsonify({'error': 'Download failed'}), 500
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
