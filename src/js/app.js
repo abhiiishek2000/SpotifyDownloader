@@ -110,16 +110,16 @@ downloadTrack.addEventListener('click', async () => {
         return;
     }
 
-    // Disable button and show progress UI
+    // UI Updates: Disable download button and show progress bar
     downloadTrack.style.display = 'none';
     progressBar.style.display = 'block';
     progressElement.style.width = '0%';
     progressText.textContent = 'Searching track...';
 
     try {
-        // Simulate search progress
-        progressElement.style.width = '20%';
+        progressElement.style.width = '20%'; // Update progress
 
+        // Request the track download
         const response = await fetch('/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -130,20 +130,19 @@ downloadTrack.addEventListener('click', async () => {
             })
         });
 
-        // Check for non-successful HTTP response
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Download failed');
         }
 
-        // Initialize progress tracking for the file download
         progressElement.style.width = '40%';
         progressText.textContent = 'Downloading audio...';
 
+        // Reading response as a stream
         const reader = response.body.getReader();
-        const contentLength = response.headers.get('Content-Length');
-        if (!contentLength) {
-            throw new Error('Content-Length header is missing. Cannot track progress.');
+        const contentLength = parseInt(response.headers.get('Content-Length'), 10);
+        if (isNaN(contentLength)) {
+            throw new Error('Missing Content-Length header.');
         }
 
         let receivedLength = 0;
@@ -156,18 +155,20 @@ downloadTrack.addEventListener('click', async () => {
             chunks.push(value);
             receivedLength += value.length;
 
-            // Calculate and update progress dynamically
+            // Update progress
             const percentage = (receivedLength / contentLength) * 100;
             progressElement.style.width = `${40 + (percentage * 0.4)}%`;
             progressText.textContent = `Downloading: ${Math.floor(percentage)}%`;
         }
 
-        // Combine chunks into a Blob
         progressElement.style.width = '90%';
         progressText.textContent = 'Finalizing...';
-        const blob = new Blob(chunks, { type: 'audio/mpeg' });
 
-        // Create a save button dynamically
+        // Combine chunks into a Blob
+        const blob = new Blob(chunks, { type: 'audio/mpeg' });
+        if (!blob.size) throw new Error('Failed to create Blob.');
+
+        // Create and configure the save button
         const saveButton = document.createElement('a');
         saveButton.href = URL.createObjectURL(blob);
         saveButton.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
@@ -176,7 +177,6 @@ downloadTrack.addEventListener('click', async () => {
         saveButton.style.display = 'block';
         saveButton.style.marginTop = '1rem';
 
-        // Update UI and allow saving the file
         progressElement.style.width = '100%';
         progressText.textContent = 'Ready to save!';
         setTimeout(() => {
@@ -184,7 +184,7 @@ downloadTrack.addEventListener('click', async () => {
             downloadTrack.parentNode.insertBefore(saveButton, progressBar);
         }, 1000);
 
-        // Clean up resources after save
+        // Clean up after download
         saveButton.addEventListener('click', () => {
             URL.revokeObjectURL(saveButton.href);
             saveButton.remove();
@@ -195,10 +195,11 @@ downloadTrack.addEventListener('click', async () => {
         });
 
     } catch (error) {
-        // Handle errors gracefully and reset UI
+        // Error handling
         showError('Download failed: ' + error.message);
         progressBar.style.display = 'none';
         downloadTrack.style.display = 'block';
         downloadTrack.disabled = false;
     }
 });
+
