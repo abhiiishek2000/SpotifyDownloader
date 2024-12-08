@@ -133,46 +133,76 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            ytmusic = YTMusic()
-            search_results = ytmusic.search(f"{title} {artist}", filter="songs")
+        # Search using YTMusic
+        ytmusic = YTMusic()
+        search_results = ytmusic.search(f"{title} {artist}", filter="songs")
 
-            if not search_results:
-                return jsonify({'error': 'Song not found'}), 404
+        if not search_results:
+            return jsonify({'error': 'Song not found'}), 404
 
-            video_id = search_results[0]['videoId']
-            output_path = Path(temp_dir) / f"{title} - {artist}.mp3"
+        video_id = search_results[0]['videoId']
+        stream_url = f"https://music.youtube.com/watch?v={video_id}"
 
-            command = [
+        def generate():
+            # First download the audio
+            yt_process = subprocess.Popen([
                 'yt-dlp',
                 '--format', 'bestaudio',
-                '--extract-audio',
-                '--audio-format', 'mp3',
-                '--audio-quality', '320k',
                 '--cookies', '/var/www/spotifysave/cookies.txt',
+                '--force-ipv4',
+                '--no-check-certificate',
                 '--no-warnings',
-                '--no-playlist',
-                '-o', str(output_path),
-                f"https://music.youtube.com/watch?v={video_id}"
-            ]
+                '-o', '-',
+                stream_url
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            subprocess.run(command, check=True)
+            # Then pipe it through ffmpeg for conversion
+            ffmpeg_process = subprocess.Popen([
+                'ffmpeg',
+                '-i', 'pipe:0',
+                '-f', 'mp3',
+                '-acodec', 'libmp3lame',
+                '-ab', '320k',
+                '-ar', '44100',
+                '-ac', '2',
+                'pipe:1'
+            ], stdin=yt_process.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            if output_path.exists():
-                with open(output_path, 'rb') as f:
-                    file_data = f.read()
+            # Close yt-dlp stdout in parent process
+            yt_process.stdout.close()
 
-                response = make_response(file_data)  # Create response with file data
-                response.headers['Content-Type'] = 'audio/mpeg'
-                response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
-                return response
+            # Read the converted audio data
+            while True:
+                data = ffmpeg_process.stdout.read(8192)
+                if not data:
+                    break
+                yield data
 
-            return jsonify({'error': 'Download failed'}), 500
+            # Check for any errors
+            ffmpeg_error = ffmpeg_process.stderr.read()
+            yt_error = yt_process.stderr.read()
+
+            if ffmpeg_error:
+                app.logger.error(f"FFmpeg error: {ffmpeg_error.decode()}")
+            if yt_error:
+                app.logger.error(f"yt-dlp error: {yt_error.decode()}")
+
+            # Wait for processes to complete
+            ffmpeg_process.wait()
+            yt_process.wait()
+
+        return Response(
+            generate(),
+            mimetype='audio/mpeg',
+            headers={
+                'Content-Disposition': f'attachment; filename="{title} - {artist}.mp3"',
+                'Cache-Control': 'no-cache'
+            }
+        )
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
