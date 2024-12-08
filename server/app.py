@@ -76,7 +76,6 @@ def download_song(video_id, output_path):
         stream_url = get_stream_url(video_id)
         temp_audio = output_path.with_suffix('.m4a')
 
-        # Use youtube-dl with cookies and other options
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
@@ -85,11 +84,13 @@ def download_song(video_id, output_path):
             '--audio-quality', '0',
             '--no-check-certificate',
             '--force-ipv4',
-            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add cookies file
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add our generated cookies
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36',
             '--add-header', 'Accept:*/*',
-            '--add-header', 'Origin:https://music.youtube.com',
-            '--no-check-formats',
+            '--add-header', 'Origin:https://www.youtube.com',
+            '--add-header', 'Referer:https://www.youtube.com',
+            '--no-warnings',
+            '--no-playlist',
             '-o', str(temp_audio),
             stream_url
         ]
@@ -101,7 +102,7 @@ def download_song(video_id, output_path):
             raise Exception(f"yt-dlp error: {e.stderr}")
 
         if not temp_audio.exists() or temp_audio.stat().st_size == 0:
-            raise Exception("Downloaded file is invalid or empty.")
+            raise Exception("Downloaded file is invalid or empty")
 
         # Convert to MP3
         output_mp3 = output_path.with_suffix('.mp3')
