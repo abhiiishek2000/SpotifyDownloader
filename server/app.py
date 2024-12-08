@@ -88,7 +88,7 @@ def download():
                 'audio_providers': ['youtube-music', 'youtube'],
                 'filter_results': True,
                 'yt_dlp_args': '--no-check-certificate --force-ipv4',
-                'cookie_file': '/var/www/spotifysave/youtube.txt',  # Corrected keyword
+                'cookie_file': '/var/www/spotifysave/cookies.txt',  # Corrected keyword
                 'audio_quality': '320k',
                 'headless': True,
                 'quiet': True
