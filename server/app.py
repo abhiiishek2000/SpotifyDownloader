@@ -78,7 +78,7 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        # Initialize SpotDL with our working settings
+        # Initialize SpotDL with corrected cookie_file setting
         spotdl = Spotdl(
             client_id='41c1c1a4546c413498d522b0f0508670',
             client_secret='c36781c6845448d3b97a1d30403d8bbe',
@@ -88,10 +88,10 @@ def download():
                 'audio_providers': ['youtube-music', 'youtube'],
                 'filter_results': True,
                 'yt_dlp_args': '--no-check-certificate --force-ipv4',
-                'cookies': '/var/www/spotifysave/cookies.txt',
+                'cookie_file': '/var/www/spotifysave/youtube.txt',  # Corrected keyword
                 'audio_quality': '320k',
                 'headless': True,
-                'output': '-'  # Output to stdout
+                'quiet': True
             }
         )
 
@@ -102,16 +102,17 @@ def download():
             return jsonify({'error': 'Song not found'}), 404
 
         app.logger.debug(f"Found {len(songs)} songs")
-        song, audio_stream = spotdl.download(songs[0])
+        song, file_path = spotdl.download(songs[0])
 
         def generate():
-            for chunk in audio_stream:
-                yield chunk
+            with open(file_path, 'rb') as f:
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
 
-        response = Response(
-            generate(),
-            mimetype='audio/mpeg'
-        )
+        response = Response(generate(), mimetype='audio/mpeg')
         response.headers['Content-Disposition'] = f'attachment; filename="{title} - {artist}.mp3"'
         return response
 
