@@ -42,25 +42,14 @@ def get_track_info(url):
 def get_stream_url(video_id):
     """Get audio stream URL from video ID using YTMusic."""
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Android 12; Mobile; rv:68.0) Gecko/68.0 Firefox/96.0',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',  # Public API key
-            'Origin': 'https://music.youtube.com'
-        }
-
-        ytmusic = YTMusic(headers_raw=headers)
-
-        # Get playback data with player params
+        ytmusic = YTMusic()
         data = ytmusic.get_watch_playlist(videoId=video_id)
 
         if not data or 'tracks' not in data:
             raise Exception("Could not get video data")
 
-        # Get streaming URL
-        stream_url = f"https://www.youtube.com/watch?v={video_id}"
+        # Use regular YouTube URL for better compatibility
+        stream_url = f"https://youtu.be/{video_id}"
 
         return stream_url
 
@@ -84,10 +73,12 @@ def download_song(video_id, output_path):
             '--force-ipv4',
             '--user-agent', 'Mozilla/5.0 (Android 12; Mobile; rv:68.0) Gecko/68.0 Firefox/96.0',
             '--add-header', 'Accept:*/*',
-            '--add-header', 'Origin:https://music.youtube.com',
+            '--add-header', 'Origin:https://www.youtube.com',
+            '--add-header', 'Referer:https://www.youtube.com',
             '--no-warnings',
-            '--extract-flat',
+            '--geo-bypass',
             '--no-playlist',
+            '--extractor-args', 'youtube:player_client=android',
             '-o', str(temp_audio),
             stream_url
         ]
