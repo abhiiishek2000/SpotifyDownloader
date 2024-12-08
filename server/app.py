@@ -126,6 +126,8 @@ def download_song(video_id, output_path):
         raise
 
 
+import io
+
 @app.route('/download', methods=['POST'])
 def download():
     try:
@@ -133,10 +135,7 @@ def download():
         title = request.json.get('title')
         artist = request.json.get('artist')
 
-        # Create a static download directory if it doesn't exist
-        download_dir = Path('/var/www/spotifysave/downloads')
-        download_dir.mkdir(exist_ok=True)
-
+        # Search for the song on YouTube Music
         ytmusic = YTMusic()
         search_results = ytmusic.search(f"{title} {artist}", filter="songs")
 
@@ -144,37 +143,48 @@ def download():
             return jsonify({'error': 'Song not found'}), 404
 
         video_id = search_results[0]['videoId']
-        output_path = download_dir / f"{title} - {artist}.mp3"
 
+        # Use yt-dlp to download directly to a buffer
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
             '--extract-audio',
             '--audio-format', 'mp3',
             '--audio-quality', '320k',
-            '--cookies', '/var/www/spotifysave/cookies_yt.txt',
             '--no-warnings',
             '--no-playlist',
-            '-o', str(output_path),
+            '-o', '-',  # Output to stdout
             f"https://music.youtube.com/watch?v={video_id}"
         ]
 
-        # Run download command
-        subprocess.run(command, check=True)
+        # Create an in-memory buffer to store the audio data
+        buffer = io.BytesIO()
 
-        if output_path.exists():
-            return send_file(
-                output_path,
-                mimetype='audio/mpeg',
-                as_attachment=True,
-                download_name=f"{title} - {artist}.mp3"
-            )
+        # Run the yt-dlp command and capture the output
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
 
-        return jsonify({'error': 'Download failed'}), 500
+        if process.returncode != 0:
+            app.logger.error(f"yt-dlp error: {stderr.decode()}")
+            return jsonify({'error': 'Failed to download song'}), 500
+
+        # Write stdout to the buffer
+        buffer.write(stdout)
+        buffer.seek(0)  # Reset buffer pointer to the beginning
+
+        # Send the file to the user
+        filename = f"{title} - {artist}.mp3"
+        return send_file(
+            buffer,
+            mimetype='audio/mpeg',
+            as_attachment=True,
+            download_name=filename
+        )
 
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
