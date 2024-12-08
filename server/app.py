@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 import tempfile
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, make_response
 from ytmusicapi import YTMusic
 import logging
 import subprocess
