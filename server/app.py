@@ -142,7 +142,17 @@ def download():
 
         video_id = search_results[0]['videoId']
 
-        # Stream directly without temporary file
+        # First run yt-dlp to get file info
+        info_command = [
+            'yt-dlp',
+            '--format', 'bestaudio',
+            '--print', 'filesize',
+            f"https://music.youtube.com/watch?v={video_id}"
+        ]
+
+        file_size = subprocess.check_output(info_command).decode().strip()
+
+        # Stream command
         command = [
             'yt-dlp',
             '--format', 'bestaudio',
@@ -152,7 +162,7 @@ def download():
             '--cookies', '/var/www/spotifysave/cookies.txt',
             '--no-warnings',
             '--no-playlist',
-            '-o', '-',  # Output to stdout
+            '-o', '-',
             f"https://music.youtube.com/watch?v={video_id}"
         ]
 
@@ -178,7 +188,8 @@ def download():
             mimetype='audio/mpeg',
             headers={
                 'Content-Disposition': f'attachment; filename="{title} - {artist}.mp3"',
-                'Cache-Control': 'no-cache'
+                'Cache-Control': 'no-cache',
+                'Content-Length': file_size  # Add the file size here
             }
         )
 

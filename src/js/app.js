@@ -113,7 +113,7 @@ downloadTrack.addEventListener('click', async () => {
     downloadTrack.style.display = 'none';
     progressBar.style.display = 'block';
     progressElement.style.width = '0%';
-    progressText.textContent = 'Processing...';
+    progressText.textContent = 'Starting download...';
 
     try {
         const response = await fetch('/download', {
@@ -131,19 +131,14 @@ downloadTrack.addEventListener('click', async () => {
             throw new Error(error.error || 'Download failed');
         }
 
-        // Get the filename from the Content-Disposition header
-        const disposition = response.headers.get('Content-Disposition');
-        const filename = disposition ?
-            disposition.split('filename=')[1].replace(/"/g, '') :
-            `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
-
         // Get total size for progress calculation
-        const totalSize = parseInt(response.headers.get('Content-Length'), 10);
+        const totalBytes = parseInt(response.headers.get('Content-Length'));
 
         // Stream the response
         const reader = response.body.getReader();
         const chunks = [];
-        let receivedLength = 0;
+        let receivedBytes = 0;
+        let startTime = Date.now();
 
         while (true) {
             const { done, value } = await reader.read();
@@ -151,30 +146,39 @@ downloadTrack.addEventListener('click', async () => {
             if (done) break;
 
             chunks.push(value);
-            receivedLength += value.length;
+            receivedBytes += value.length;
 
-            // Update progress
-            const progress = (receivedLength / totalSize) * 100;
-            progressElement.style.width = `${progress}%`;
-            progressText.textContent = `Downloading... ${Math.round(progress)}%`;
+            // Calculate speed and progress
+            const elapsedSeconds = (Date.now() - startTime) / 1000;
+            const bytesPerSecond = receivedBytes / elapsedSeconds;
+            const speedMbps = (bytesPerSecond / (1024 * 1024)).toFixed(2);
+
+            // Update progress only if we have the total size
+            if (totalBytes) {
+                const progress = (receivedBytes / totalBytes) * 100;
+                progressElement.style.width = `${progress}%`;
+                progressText.textContent = `Downloading... ${Math.round(progress)}% (${speedMbps} MB/s)`;
+            } else {
+                // If no Content-Length, show downloaded size
+                const downloadedMB = (receivedBytes / (1024 * 1024)).toFixed(2);
+                progressText.textContent = `Downloading... ${downloadedMB}MB (${speedMbps} MB/s)`;
+            }
         }
 
-        // Create blob and download
+        // Create and trigger download
         const blob = new Blob(chunks, { type: 'audio/mpeg' });
         const url = window.URL.createObjectURL(blob);
-
         const a = document.createElement('a');
-        a.style.display = 'none';
         a.href = url;
-        a.download = filename;
+        a.download = `${currentTrackInfo.title} - ${currentTrackInfo.artist}.mp3`;
         document.body.appendChild(a);
-
-        // Trigger download
         a.click();
 
         // Cleanup
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }, 100);
 
         progressElement.style.width = '100%';
         progressText.textContent = 'Download complete!';
