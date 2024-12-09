@@ -209,6 +209,8 @@ def download():
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -229,6 +231,11 @@ def get_info():
 @app.route('/privacy')
 def privacy():
     return render_template('privacy.html')
+
+
+@app.route('/changelog')
+def changelog():
+    return render_template('changelog.html')
 
 
 @app.route('/terms')
