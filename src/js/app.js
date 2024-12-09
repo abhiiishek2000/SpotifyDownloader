@@ -112,7 +112,7 @@ downloadTrack.addEventListener('click', async () => {
 
     downloadTrack.style.display = 'none';
     progressBar.style.display = 'block';
-    progressElement.style.width = '0%';
+    progressElement.style.width = '5%';
     progressText.textContent = 'Starting download...';
 
     try {
