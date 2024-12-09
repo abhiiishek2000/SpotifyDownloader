@@ -142,15 +142,21 @@ def download():
 
         video_id = search_results[0]['videoId']
 
-        # First run yt-dlp to get file info
+        # First run yt-dlp to get file info WITH cookies
         info_command = [
             'yt-dlp',
             '--format', 'bestaudio',
             '--print', 'filesize',
+            '--cookies', '/var/www/spotifysave/cookies.txt',  # Add cookies here
             f"https://music.youtube.com/watch?v={video_id}"
         ]
 
-        file_size = subprocess.check_output(info_command).decode().strip()
+        try:
+            file_size = subprocess.check_output(info_command).decode().strip()
+        except subprocess.CalledProcessError:
+            # If file size fetch fails, proceed without it
+            file_size = None
+            app.logger.warning("Could not get file size, proceeding with download anyway")
 
         # Stream command
         command = [
@@ -183,14 +189,19 @@ def download():
             process.stdout.close()
             process.wait()
 
+        headers = {
+            'Content-Disposition': f'attachment; filename="{title} - {artist}.mp3"',
+            'Cache-Control': 'no-cache',
+        }
+
+        # Only add Content-Length if we got the file size
+        if file_size:
+            headers['Content-Length'] = file_size
+
         response = Response(
             generate(),
             mimetype='audio/mpeg',
-            headers={
-                'Content-Disposition': f'attachment; filename="{title} - {artist}.mp3"',
-                'Cache-Control': 'no-cache',
-                'Content-Length': file_size  # Add the file size here
-            }
+            headers=headers
         )
 
         return response
@@ -198,7 +209,6 @@ def download():
     except Exception as e:
         app.logger.error(f"Download error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
 @app.route('/')
 def index():
     return render_template('index.html')
